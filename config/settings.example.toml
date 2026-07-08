@@ -1,0 +1,14 @@
+[search]
+target_year = 2027
+role_keywords = [
+    "software engineering intern",
+    "AI intern",
+    "machine learning intern",
+]
+locations = [
+    "remote",
+]
+
+[email]
+enabled = false
+weekly_summary_day = "Monday"

@@ -149,6 +149,7 @@ activemq-data/
 
 # Environments
 .env
+.env.local
 .envrc
 .venv
 env/
@@ -208,6 +209,16 @@ tempCodeRunnerFile.py
 
 # PyPI configuration file
 .pypirc
+
+# Project-local private data
+private/*
+!private/README.md
+!private/.gitkeep
+
+# Generated application data
+data/*
+!data/README.md
+!data/.gitkeep
 
 # Marimo
 marimo/_static/
