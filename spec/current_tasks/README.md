@@ -8,13 +8,11 @@ Build the first local end-to-end flow for collecting, filtering, and reviewing S
 
 ## Task Order
 
-1. `003-first-job-collector.md` - Collect structured postings from the first company sources.
-2. `004-summer-2027-filter.md` - Filter postings for likely Summer 2027 internship relevance.
-3. `005-results-review-report.md` - Generate a local Markdown report for review.
+No active current tasks. The first local collection, filtering, and review milestone is complete.
 
 ## Current Focus
 
-Start with the first job collector before using AI heavily. The first priority is fetching structured postings from the source registry.
+Choose the next task from `spec/future_tasks/` and move it into this folder when it is ready to implement.
 
 ## Code Style Instructions
 

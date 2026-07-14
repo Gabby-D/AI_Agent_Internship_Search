@@ -4,23 +4,35 @@ Use this folder for planned work that is not ready to implement yet.
 
 ## Future Roadmap
 
-These tasks extend the first local collector into a more capable AI-assisted internship search system.
+The first 24 implementation tasks are complete. The remaining work focuses on expanding sources and improving posting quality:
 
-The current company list should be treated as seed input only. A later discovery step should expand the search to similar companies and companies in related industries.
+1. Expand and fix company sources so seed employers actually return internships.
+2. Improve posting metadata and job-board coverage.
+3. Polish remaining operational behavior where needed.
+
+The current company list should still be treated as seed input. Discovery, internet search, and job-board providers should continue expanding the registry over time.
 
 ## Task Index
 
-1. `001-ai-fit-scoring.md` - Score postings against profile, preferences, resume, coursework, and connections.
-2. `002-new-posting-detection.md` - Track which postings are new, changed, repeated, or no longer available.
-3. `003-weekly-email-summary.md` - Send a weekly summary of relevant new roles.
-4. `004-scheduled-collection.md` - Run collection automatically on a schedule.
-5. `005-company-discovery.md` - Find similar companies and career sources to expand the search.
-6. `006-local-review-ui.md` - Build a simple local interface for reviewing postings and updating preferences.
-7. `007-internet-search-provider.md` - Add a modular internet search layer for finding websites, careers pages, and similar companies from Python.
+### High Priority
+
+1. `025-bakar-alumni-company-expansion.md` - Add Bakar alumni companies to the seed company list.
+
+### Medium Priority
+
+1. None currently listed.
+
+### Lower Priority
+
+1. None currently listed.
+
+## Suggested Order
+
+1. `025-bakar-alumni-company-expansion.md`
 
 ## Notes
 
-Future tasks should move into `spec/current_tasks/` when the previous collector and filtering milestones are working.
+Future tasks should move into `spec/current_tasks/` when they are ready to implement.
 
 ## Code Style Instructions
 

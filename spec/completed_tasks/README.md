@@ -6,3 +6,29 @@ Use this folder for notes about completed work and decisions.
 
 1. `001-private-input-loader.md` - Loaded private company, preference, course, connections, and resume-presence inputs.
 2. `002-company-source-registry.md` - Built the seed company career-source registry.
+3. `003-first-job-collector.md` - Collected first-pass posting candidates from company career sources.
+4. `004-summer-2027-filter.md` - Filtered posting candidates with inclusion and exclusion reasons.
+5. `005-results-review-report.md` - Generated a readable local Markdown review report.
+6. `006-ai-fit-scoring.md` - Scored filtered postings with a local AI-ready fit scorer.
+7. `007-new-posting-detection.md` - Tracked new, seen, changed, and missing postings across runs.
+8. `008-weekly-email-summary.md` - Generated a local weekly email summary draft for unsent scored internships.
+9. `009-scheduled-collection.md` - Ran the full local workflow manually or through a scheduler with local logs.
+10. `010-company-discovery.md` - Suggested similar companies for review from local curated discovery data.
+11. `011-local-review-ui.md` - Added a local browser dashboard for reviewing postings and preferences.
+12. `012-internet-search-provider.md` - Added a modular internet search layer for finding careers pages from Python.
+13. `013-ai-provider-integration.md` - Connected fit scoring to Gemini with local fallback.
+14. `014-email-delivery.md` - Added SMTP delivery for the weekly internship summary email.
+15. `015-internet-backed-company-discovery.md` - Added internet search to company discovery with curated fallback.
+16. `016-improved-career-page-collectors.md` - Added source-specific collectors and registry enrichment for difficult career sites.
+17. `017-specific-job-listing-filter.md` - Improved specific-versus-generic internship listing classification and filter reasons.
+18. `018-resume-aware-scoring-opt-in.md` - Added optional resume-aware Gemini scoring behind an explicit opt-in flag.
+19. `019-job-board-search.md` - Added modular job-board search with Adzuna and DuckDuckGo providers.
+20. `020-closed-and-duplicate-role-detection.md` - Improved duplicate and closed-role detection across posting history runs.
+21. `021-scheduler-and-run-hardening.md` - Improved scheduled run summaries, retries, and Windows Task Scheduler setup.
+22. `022-review-ui-enhancements.md` - Enhanced the local review UI with scored details, filters, and email-status visibility.
+23. `023-restore-project-documentation.md` - Restored the root README and onboarding documentation.
+24. `024-verify-email-and-scheduled-runs.md` - Verified SMTP delivery, scheduler logs, and local automation troubleshooting docs.
+25. `026-javascript-career-site-collectors.md` - Added Consider API, PwC, and improved BlackRock collectors for JS-heavy career sites.
+26. `027-posting-metadata-enrichment.md` - Enriched posting company names and locations from parsers and public ATS APIs.
+27. `028-improved-linkedin-indeed-search.md` - Improved LinkedIn and Indeed search, deduplication, and provider limitation reporting.
+28. `029-adzuna-job-board-configuration.md` - Added then removed Adzuna; job-board search is DuckDuckGo-only.

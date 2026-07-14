@@ -14,6 +14,8 @@ class SourceMetadata:
     careers_url: str
     source_type: str
     notes: str
+    alternate_careers_urls: tuple[str, ...] = ()
+    collector: str = "auto"
 
 
 @dataclass(frozen=True)
@@ -25,33 +27,81 @@ class CompanySource:
     origin: str
     has_connection: bool
     notes: str
+    alternate_careers_urls: tuple[str, ...] = ()
+    collector: str = "auto"
 
 
 KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
     "pwc": SourceMetadata(
-        careers_url="https://www.pwc.com/us/en/careers/entry-level/internships.html",
-        source_type="company_careers_page",
-        notes="US internship page. PwC also has region-specific student career pages.",
+        careers_url="https://jobs-us.pwc.com/us/en/search-results?keywords=intern",
+        source_type="company_careers_search",
+        notes="PwC US internship search results on the jobs portal.",
+        alternate_careers_urls=(
+            "https://www.pwc.com/us/en/careers/entry-level/internships.html",
+        ),
+        collector="pwc_jobs",
     ),
     "blackrock": SourceMetadata(
-        careers_url="https://careers.blackrock.com/en/students-and-graduates",
-        source_type="company_careers_page",
-        notes="Official students and graduates page.",
+        careers_url="https://careers.blackrock.com/search-jobs?keywords=2027%20intern",
+        source_type="company_careers_search",
+        notes="Students page is JavaScript-heavy; search results expose static job links.",
+        alternate_careers_urls=(
+            "https://careers.blackrock.com/en/students-and-graduates",
+        ),
+        collector="blackrock_jobs",
     ),
     "bain": SourceMetadata(
         careers_url="https://www.bain.com/careers/work-with-us/internships-programs/",
         source_type="company_careers_page",
         notes="Official internships and programs page.",
+        alternate_careers_urls=(
+            "https://careers.bain.com/recruits/signin?folderId=10403",
+        ),
     ),
     "bakar bio labs": SourceMetadata(
         careers_url="https://jobs.bakarlabs.org/jobs",
         source_type="job_board",
         notes="Official Bakar Labs companies job board.",
+        collector="consider_board",
     ),
     "mckinsey & co": SourceMetadata(
-        careers_url="https://www.mckinsey.com/careers/students/undergraduate-degree",
+        careers_url="https://www.mckinsey.com/careers/search-jobs?keywords=intern",
+        source_type="company_careers_search",
+        notes="Undergraduate page often times out; search endpoint is more reliable.",
+        alternate_careers_urls=(
+            "https://www.mckinsey.com/careers/students/undergraduate-degree",
+        ),
+    ),
+    "pixar": SourceMetadata(
+        careers_url="https://jobs.disney.com/en/search-jobs?keywords=pixar%20intern",
+        source_type="company_careers_search",
+        notes="Pixar internships are posted on the Disney careers portal.",
+        alternate_careers_urls=("https://www.pixar.com/careers",),
+    ),
+    "levi's": SourceMetadata(
+        careers_url="https://careers.levistrauss.com/go/Internships-%26-Entry-Level-Opportunities/8775602/",
         source_type="company_careers_page",
-        notes="Official undergraduate opportunities page.",
+        notes="Levi Strauss internships and entry-level programs page.",
+    ),
+    "bluevine": SourceMetadata(
+        careers_url="https://www.bluevine.com/careers",
+        source_type="company_careers_page",
+        notes="Bluevine careers page.",
+    ),
+    "stripe": SourceMetadata(
+        careers_url="https://stripe.com/jobs/search?query=intern",
+        source_type="company_careers_search",
+        notes="Stripe job search filtered for internships.",
+    ),
+    "robinhood": SourceMetadata(
+        careers_url="https://careers.robinhood.com",
+        source_type="company_careers_page",
+        notes="Robinhood careers portal.",
+    ),
+    "patreon": SourceMetadata(
+        careers_url="https://www.patreon.com/careers",
+        source_type="company_careers_page",
+        notes="Patreon careers page.",
     ),
 }
 
@@ -81,6 +131,8 @@ def build_company_source(company: Company) -> CompanySource:
         origin="seed",
         has_connection=company.has_connection,
         notes=metadata.notes,
+        alternate_careers_urls=metadata.alternate_careers_urls,
+        collector=metadata.collector,
     )
 
 
@@ -109,7 +161,20 @@ def read_source_registry(path: Path | str = "data/source_registry.json") -> list
 
     registry_path = Path(path)
     raw_sources = json.loads(registry_path.read_text(encoding="utf-8"))
-    return [CompanySource(**source) for source in raw_sources]
+    sources: list[CompanySource] = []
+    for source in raw_sources:
+        sources.append(
+            CompanySource(
+                alternate_careers_urls=tuple(source.get("alternate_careers_urls", [])),
+                collector=source.get("collector", "auto"),
+                **{
+                    key: source[key]
+                    for key in source
+                    if key not in {"alternate_careers_urls", "collector"}
+                },
+            )
+        )
+    return sources
 
 
 def summarize_source_registry(sources: list[CompanySource]) -> str:

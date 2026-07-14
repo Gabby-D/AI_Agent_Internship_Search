@@ -25,10 +25,20 @@ def test_build_company_source_uses_known_seed_metadata():
 
     assert source.company == "BlackRock"
     assert source.website == "https://www.blackrock.com"
-    assert source.careers_url == "https://careers.blackrock.com/en/students-and-graduates"
-    assert source.source_type == "company_careers_page"
+    assert source.careers_url == "https://careers.blackrock.com/search-jobs?keywords=2027%20intern"
+    assert source.source_type == "company_careers_search"
+    assert source.collector == "blackrock_jobs"
     assert source.origin == "seed"
     assert source.has_connection is True
+
+
+def test_build_company_source_uses_known_seed_metadata_for_pwc():
+    source = build_company_source(
+        Company(name="PWC", website="www.pwc.com", has_connection=True)
+    )
+
+    assert source.careers_url == "https://jobs-us.pwc.com/us/en/search-results?keywords=intern"
+    assert source.collector == "pwc_jobs"
 
 
 def test_build_company_source_falls_back_to_website_for_unknown_company():
