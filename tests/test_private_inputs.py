@@ -1,8 +1,15 @@
 from internship_search.private_inputs import (
+    Company,
     PrivateInputError,
     load_private_inputs,
     parse_companies_file,
     parse_preferences_file,
+    read_companies,
+    read_editable_text,
+    read_preferences,
+    replace_companies,
+    replace_preferences,
+    write_editable_text,
 )
 
 
@@ -105,3 +112,105 @@ def test_load_private_inputs_allows_empty_optional_connections(tmp_path):
     assert inputs.courses[0].code == "MATH 323"
     assert inputs.connections_notes == ""
     assert inputs.resume_path is None
+
+
+def test_replace_companies_round_trips_companies_and_industries(tmp_path):
+    private_dir = tmp_path / "nested" / "private"
+
+    replace_companies(
+        [
+            Company("Connected Co", "https://connected.example", True),
+            {
+                "name": "Independent Co",
+                "website": "https://independent.example",
+                "has_connection": False,
+            },
+        ],
+        ["finance", "operations"],
+        private_dir,
+    )
+
+    companies, industries = read_companies(private_dir)
+
+    assert companies == [
+        Company("Connected Co", "https://connected.example", True),
+        Company("Independent Co", "https://independent.example", False),
+    ]
+    assert industries == ["finance", "operations"]
+
+
+def test_replace_preferences_round_trips_likes_and_dislikes(tmp_path):
+    private_dir = tmp_path / "private"
+
+    replace_preferences(
+        ["Paid position", "Remote work"],
+        ["Marketing"],
+        private_dir,
+    )
+
+    assert read_preferences(private_dir).likes == ["Paid position", "Remote work"]
+    assert read_preferences(private_dir).dislikes == ["Marketing"]
+
+
+def test_editable_text_round_trips_raw_files_and_validates_courses(tmp_path):
+    private_dir = tmp_path / "private"
+    course_content = """# McGill Course List
+
+## Program
+- **Major:** Mathematics
+
+## Courses
+- **MATH 323:** Probability
+"""
+
+    write_editable_text("mcgill_class_list.md", course_content, private_dir)
+    write_editable_text("connections.md", "Met a recruiter.", private_dir)
+    write_editable_text("resume_summary.md", "Data-focused student.", private_dir)
+
+    assert read_editable_text("mcgill_class_list.md", private_dir) == course_content
+    assert read_editable_text("connections.md", private_dir) == "Met a recruiter."
+    assert read_editable_text("resume_summary.md", private_dir) == "Data-focused student."
+
+
+def test_invalid_writer_content_does_not_mutate_existing_files(tmp_path):
+    private_dir = tmp_path / "private"
+    private_dir.mkdir()
+    companies_path = private_dir / "list_of_companies.md"
+    preferences_path = private_dir / "preferences.md"
+    courses_path = private_dir / "mcgill_class_list.md"
+    companies_path.write_text(
+        "| Name | Website | I know someone in the company |\n"
+        "|------|---------|-------------------------------|\n"
+        "| Existing | https://existing.example | yes |\n",
+        encoding="utf-8",
+    )
+    preferences_path.write_text(
+        "# Preferences\n## Things I like\n1. Existing preference\n",
+        encoding="utf-8",
+    )
+    courses_path.write_text(
+        "# Courses\n## Core\n- MATH 323: Probability\n",
+        encoding="utf-8",
+    )
+
+    originals = {
+        path: path.read_text(encoding="utf-8")
+        for path in (companies_path, preferences_path, courses_path)
+    }
+
+    for writer, args in (
+        (replace_companies, ([], [], private_dir)),
+        (replace_preferences, ([], [], private_dir)),
+        (write_editable_text, ("mcgill_class_list.md", "# Courses\n", private_dir)),
+    ):
+        try:
+            writer(*args)
+        except PrivateInputError:
+            pass
+        else:
+            raise AssertionError("Expected invalid content to raise")
+
+    assert {
+        path: path.read_text(encoding="utf-8")
+        for path in (companies_path, preferences_path, courses_path)
+    } == originals

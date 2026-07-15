@@ -23,12 +23,14 @@ uv sync
 
 Create local files under `private/` (not committed to git):
 
-- `list_of_companies.md` — seed companies to monitor
-- `preferences.md` — likes and dislikes
-- `mcgill_class_list.md` — coursework and program info
+- `list_of_companies.md` — required seed companies to monitor
+- `preferences.md` — required likes, dislikes, and location preferences
+- `mcgill_class_list.md` — required coursework and program info
 - `connections.md` — optional connection notes
+- `Resume - Gabrielle Dar.pdf` — optional local resume reference; the PDF is not parsed
+- `resume_summary.md` — optional resume text used only for explicitly enabled resume-aware Gemini scoring; `resume.md` and `resume.txt` are also accepted
 
-See `private/README.md` for the suggested file layout.
+See `private/README.md` for the exact filenames and resume-handling behavior.
 
 ### 3. Configure environment variables
 
@@ -44,8 +46,12 @@ Common variables:
 |----------|---------|
 | `AI_PROVIDER_API_KEY` | Gemini API key for fit scoring |
 | `AI_PROVIDER` | `auto`, `gemini`, or `local` |
-| `AI_RESUME_SCORING_ENABLED` | Set `true` to include `private/resume_summary.md` in AI prompts |
+| `AI_PROVIDER_MODEL` | Gemini model name (default: `gemini-2.5-flash`) |
+| `AI_RESUME_SCORING_ENABLED` | Set `true` to include the first supported private resume-summary file in Gemini scoring prompts |
 | `EMAIL_FROM`, `EMAIL_TO`, `EMAIL_SMTP_PASSWORD` | SMTP settings for weekly email delivery |
+| `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT` | SMTP server settings (defaults: `smtp.gmail.com` and `587`) |
+| `EMAIL_SMTP_USER` | SMTP username (defaults to `EMAIL_FROM`) |
+| `EMAIL_SMTP_USE_TLS` | Set `false` to disable TLS (enabled by default) |
 | `TAVILY_API_KEY` | Optional Tavily-only internet search (`INTERNET_SEARCH_PROVIDER=tavily`) |
 | `GOOGLE_CUSTOM_SEARCH_API_KEY`, `GOOGLE_CSE_ID` | Optional Google Custom Search fallback when DuckDuckGo fails or returns no results |
 | `INTERNET_SEARCH_PROVIDER` | `auto`, `duckduckgo_html`, `google_custom_search`, or `tavily` |
@@ -73,7 +79,7 @@ The main repeatable pipeline:
 1. Build source registry from seed companies
 2. Collect posting candidates
 3. Detect new, seen, changed, and missing postings
-4. Filter for likely Summer 2027 internship relevance
+4. Filter for likely Summer 2027 internship relevance and the location policy
 5. Generate a Markdown review report
 6. Score filtered postings with Gemini or local rules
 7. Generate a weekly email summary draft
@@ -95,6 +101,12 @@ Or run everything at once:
 ```powershell
 uv run internship-search run-scheduled-collection --include-job-boards
 ```
+
+## Location Policy
+
+The pipeline keeps only roles in the Bay Area, Israel, or roles that are clearly fully remote or online. Other locations, unknown locations, and non-preferred hybrid locations are excluded during filtering and omitted from scoring, weekly email, and the review dashboard.
+
+An empty dashboard can therefore mean that no current roles match the location policy.
 
 ## CLI Commands
 
@@ -119,9 +131,12 @@ Useful flags:
 ```powershell
 uv run internship-search collect --include-job-boards
 uv run internship-search collect --enrich-from-search data/internet_search_results.jsonl
+uv run internship-search discover-companies --update-registry
 uv run internship-search score-postings --resume-aware
 uv run internship-search weekly-email-summary --send
 uv run internship-search run-scheduled-collection --include-job-boards --send-email
+uv run internship-search run-scheduled-collection --include-job-boards --skip-email
+uv run internship-search review-ui --no-open-browser --port 8766
 ```
 
 ## Internet Search
@@ -144,7 +159,7 @@ This project does not scrape google.com directly. Google is accessed only throug
 
 External job boards are searched during collection when `--include-job-boards` is used.
 
-Job-board search uses **DuckDuckGo `site:` queries** against public listing URLs on Greenhouse, Lever, Workday, LinkedIn, and Indeed. No extra API credentials are required.
+Job-board search uses public search-provider `site:` queries for Greenhouse, Lever, Workday, LinkedIn, and Indeed listing URLs. In the default `auto` configuration, it tries DuckDuckGo first and can fall back to Google Custom Search when configured.
 
 ```powershell
 uv run internship-search search-job-boards
@@ -153,12 +168,12 @@ uv run internship-search collect --include-job-boards
 
 ### LinkedIn and Indeed
 
-LinkedIn and Indeed are searched through public listing URLs surfaced by DuckDuckGo `site:` queries, not through logged-in site scraping or official APIs.
+LinkedIn and Indeed are searched through public listing URLs surfaced by search-provider `site:` queries, not through logged-in site scraping or official APIs.
 
 Supported limits:
 
 - Only publicly indexed listing URLs are returned; logged-in-only postings are out of scope.
-- DuckDuckGo runs multiple LinkedIn and Indeed query variants each collection run.
+- Job-board search runs multiple LinkedIn and Indeed query variants each collection run.
 - When the same role appears on a company career page and on LinkedIn/Indeed, collection keeps the career-page URL.
 - Run summaries and collection logs record provider limitations when LinkedIn or Indeed coverage is partial.
 
@@ -195,6 +210,10 @@ The UI shows separate lists:
 - Ignored
 
 Each row shows job title, company, location, link, and review status. Status changes are saved to `data/posting_reviews.json`.
+
+The dashboard displays the active location policy. Its API can load or save `data/ui_preferences.json`, but the current browser page does not include a preferences editor, and scoring continues to use `private/preferences.md`.
+
+The collapsed **Monitored companies** section reads `private/list_of_companies.md` on every dashboard refresh. The page refreshes its data automatically every 30 seconds, so company additions, removals, websites, and connection flags appear without restarting the UI. New companies are included in future posting searches after the next scheduled collection, or immediately after running `uv run internship-search run-scheduled-collection --include-job-boards`.
 
 Restart the UI after code changes:
 
@@ -301,7 +320,10 @@ Key docs:
 Common outputs in `data/`:
 
 - `postings.jsonl` — collected posting candidates
+- `collection_errors.jsonl` — collection failures from the latest run
+- `job_board_postings.jsonl` — public job-board search results
 - `filtered_postings.jsonl` / `excluded_postings.jsonl` — filter results
+- `monitored_no_openings.jsonl` — seed companies without a specific matching opening
 - `scored_postings.jsonl` — fit scores and explanations
 - `latest_report.md` — readable review report
 - `weekly_email_summary.md` — email draft
@@ -331,12 +353,13 @@ Implemented and working locally:
 - Private input loading, source registry, collection, filtering, and reporting
 - Gemini fit scoring with local fallback and optional resume-aware scoring
 - Posting history with duplicate and closed-role detection
+- Deterministic Bay Area, Israel, and remote/online location filtering across filtering, scoring, email, and review
 - Job-board search with DuckDuckGo queries for Greenhouse, Lever, Workday, LinkedIn, and Indeed
 - Weekly email draft and SMTP delivery
 - Windows Task Scheduler automation with missed-run catch-up
 - Local review UI with status-based lists
 
-Remaining improvements are tracked in `spec/future_tasks/`.
+The remaining planned work is live workflow validation, production scheduler validation, and release readiness. It is tracked in `spec/future_tasks/`.
 
 ## Privacy
 
@@ -345,5 +368,7 @@ Do not commit:
 - `.env`
 - Real files in `private/`
 - Generated files in `data/`
+
+Set `EMAIL_TO` in `.env` before sending so delivery does not use the project's fallback recipient.
 
 The project is designed to keep personal data local by default.

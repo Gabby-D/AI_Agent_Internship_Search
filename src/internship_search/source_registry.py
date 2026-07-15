@@ -103,6 +103,12 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         source_type="company_careers_page",
         notes="Patreon careers page.",
     ),
+    "relling": SourceMetadata(
+        careers_url="https://www.ycombinator.com/companies/relling/jobs",
+        source_type="company_careers_page",
+        notes="Official Y Combinator jobs page for Relling.",
+        collector="ycombinator_jobs",
+    ),
 }
 
 

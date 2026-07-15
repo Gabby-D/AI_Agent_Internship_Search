@@ -4,19 +4,19 @@ Use this folder for planned work that is not ready to implement yet.
 
 ## Future Roadmap
 
-The first 24 implementation tasks are complete. The remaining work focuses on expanding sources and improving posting quality:
+The core implementation and local integration-readiness tasks are complete. The remaining work focuses on live operational validation and release readiness:
 
-1. Expand and fix company sources so seed employers actually return internships.
-2. Improve posting metadata and job-board coverage.
-3. Polish remaining operational behavior where needed.
+1. Run the full workflow against live sources and evaluate its results.
+2. Register and validate the recurring collection and weekly email tasks.
+3. Complete final testing and version-control review.
 
-The current company list should still be treated as seed input. Discovery, internet search, and job-board providers should continue expanding the registry over time.
+The current company list remains seed input. Discovery, internet search, and job-board providers can continue expanding the registry over time.
 
 ## Task Index
 
 ### High Priority
 
-1. `025-bakar-alumni-company-expansion.md` - Add Bakar alumni companies to the seed company list.
+1. `035-review-ui-redesign.md` - Redesign the local review dashboard with tabbed navigation and a modern, minimal visual style.
 
 ### Medium Priority
 
@@ -28,7 +28,7 @@ The current company list should still be treated as seed input. Discovery, inter
 
 ## Suggested Order
 
-1. `025-bakar-alumni-company-expansion.md`
+1. `035-review-ui-redesign.md`
 
 ## Notes
 

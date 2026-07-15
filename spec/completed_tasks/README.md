@@ -22,7 +22,7 @@ Use this folder for notes about completed work and decisions.
 16. `016-improved-career-page-collectors.md` - Added source-specific collectors and registry enrichment for difficult career sites.
 17. `017-specific-job-listing-filter.md` - Improved specific-versus-generic internship listing classification and filter reasons.
 18. `018-resume-aware-scoring-opt-in.md` - Added optional resume-aware Gemini scoring behind an explicit opt-in flag.
-19. `019-job-board-search.md` - Added modular job-board search with Adzuna and DuckDuckGo providers.
+19. `019-job-board-search.md` - Added modular job-board search integrated with collection and scheduling; the original Adzuna integration was later removed in task 029.
 20. `020-closed-and-duplicate-role-detection.md` - Improved duplicate and closed-role detection across posting history runs.
 21. `021-scheduler-and-run-hardening.md` - Improved scheduled run summaries, retries, and Windows Task Scheduler setup.
 22. `022-review-ui-enhancements.md` - Enhanced the local review UI with scored details, filters, and email-status visibility.
@@ -31,4 +31,11 @@ Use this folder for notes about completed work and decisions.
 25. `026-javascript-career-site-collectors.md` - Added Consider API, PwC, and improved BlackRock collectors for JS-heavy career sites.
 26. `027-posting-metadata-enrichment.md` - Enriched posting company names and locations from parsers and public ATS APIs.
 27. `028-improved-linkedin-indeed-search.md` - Improved LinkedIn and Indeed search, deduplication, and provider limitation reporting.
-28. `029-adzuna-job-board-configuration.md` - Added then removed Adzuna; job-board search is DuckDuckGo-only.
+28. `029-adzuna-job-board-configuration.md` - Added then removed Adzuna; job-board discovery now uses public search-provider site queries.
+29. `030-private-profile-readiness.md` - Validated local private inputs and recorded the Bay Area, Israel, and online/remote location preference.
+30. `031-environment-integration-readiness.md` - Validated Gemini scoring fallback and SMTP configuration, then sent a controlled test email.
+31. `032-live-workflow-validation.md` - Ran the live workflow, verified location-safe results, and added a Y Combinator location-aware collector.
+32. `033-scheduler-production-validation.md` - Validated Windows task registration, wrapper logs, missed-run settings, and weekly email delivery.
+33. `034-release-readiness-and-version-control.md` - Reviewed the release, ran the full suite, and committed completed local work.
+
+Task 025 was retired before implementation, so there is no completed-task file for that number.

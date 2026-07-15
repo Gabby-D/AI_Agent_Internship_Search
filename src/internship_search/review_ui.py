@@ -10,11 +10,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from internship_search.private_inputs import (
+    PrivateInputError,
+    read_editable_text,
+    replace_companies,
+    replace_preferences,
+    write_editable_text,
+)
+from internship_search.source_registry import load_seed_source_registry, write_source_registry
 from internship_search.review_state import (
+    append_activity_log,
     load_review_dashboard,
     parse_review_filters,
     preferences_from_payload,
-    save_ui_preferences,
     set_posting_review,
 )
 
@@ -86,6 +94,9 @@ def _build_handler(data_path: Path, private_path: Path):
                 payload = load_review_dashboard(self.data_dir, self.private_dir, filters=filters)
                 self._send_json(payload)
                 return
+            if parsed.path == "/api/inputs":
+                self._send_json(self._input_payload())
+                return
             self._send_error(404, "Not found")
 
         def do_POST(self) -> None:
@@ -103,6 +114,12 @@ def _build_handler(data_path: Path, private_path: Path):
                 return
             if parsed.path == "/api/preferences":
                 self._handle_preferences_update(payload)
+                return
+            if parsed.path == "/api/companies":
+                self._handle_companies_update(payload)
+                return
+            if parsed.path == "/api/input-file":
+                self._handle_input_file_update(payload)
                 return
             self._send_error(404, "Not found")
 
@@ -124,18 +141,30 @@ def _build_handler(data_path: Path, private_path: Path):
             except ValueError as error:
                 self._send_error(400, str(error))
                 return
+            append_activity_log(
+                action="opportunity_status_updated",
+                subject=posting_url,
+                details={"status": entry.status},
+                output_path=self.data_dir / "activity_log.jsonl",
+            )
             self._send_json({"ok": True, "review": entry.__dict__})
 
         def _handle_preferences_update(self, payload: dict) -> None:
             try:
                 preferences = preferences_from_payload(payload)
-            except ValueError as error:
+                replace_preferences(
+                    preferences.likes,
+                    preferences.dislikes,
+                    private_dir=self.private_dir,
+                )
+            except (PrivateInputError, ValueError) as error:
                 self._send_error(400, str(error))
                 return
-            path = save_ui_preferences(
-                likes=preferences.likes,
-                dislikes=preferences.dislikes,
-                output_path=self.data_dir / "ui_preferences.json",
+            append_activity_log(
+                action="preferences_updated",
+                subject="preferences.md",
+                details={"likes": len(preferences.likes), "dislikes": len(preferences.dislikes)},
+                output_path=self.data_dir / "activity_log.jsonl",
             )
             self._send_json(
                 {
@@ -143,11 +172,60 @@ def _build_handler(data_path: Path, private_path: Path):
                     "preferences": {
                         "likes": preferences.likes,
                         "dislikes": preferences.dislikes,
-                        "source": "ui",
+                        "source": "private",
                     },
-                    "path": str(path),
                 }
             )
+
+        def _handle_companies_update(self, payload: dict) -> None:
+            companies = payload.get("companies", [])
+            industries = payload.get("industries", [])
+            if not isinstance(companies, list) or not isinstance(industries, list):
+                self._send_error(400, "companies and industries must be lists.")
+                return
+            try:
+                replace_companies(companies, industries, private_dir=self.private_dir)
+                write_source_registry(
+                    load_seed_source_registry(self.private_dir),
+                    self.data_dir / "source_registry.json",
+                )
+            except (PrivateInputError, ValueError, TypeError) as error:
+                self._send_error(400, str(error))
+                return
+            append_activity_log(
+                action="company_list_updated",
+                subject="list_of_companies.md",
+                details={"companies": len(companies), "industries": len(industries)},
+                output_path=self.data_dir / "activity_log.jsonl",
+            )
+            self._send_json({"ok": True})
+
+        def _handle_input_file_update(self, payload: dict) -> None:
+            filename = str(payload.get("filename", ""))
+            content = payload.get("content", "")
+            try:
+                write_editable_text(filename, content, private_dir=self.private_dir)
+            except (PrivateInputError, ValueError) as error:
+                self._send_error(400, str(error))
+                return
+            append_activity_log(
+                action="reference_file_updated",
+                subject=filename,
+                output_path=self.data_dir / "activity_log.jsonl",
+            )
+            self._send_json({"ok": True})
+
+        def _input_payload(self) -> dict:
+            return {
+                "files": {
+                    filename: read_editable_text(filename, private_dir=self.private_dir)
+                    for filename in (
+                        "mcgill_class_list.md",
+                        "connections.md",
+                        "resume_summary.md",
+                    )
+                }
+            }
 
         def _send_html(self, content: str) -> None:
             encoded = content.encode("utf-8")
@@ -180,53 +258,154 @@ def _build_handler(data_path: Path, private_path: Path):
 
 
 def render_review_page() -> str:
-    return """<!DOCTYPE html>
+    return r"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Internship Review</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; background: #f7f7f8; color: #1f2933; }
-    h1 { margin-bottom: 20px; }
-    h2 { margin: 0 0 12px; font-size: 18px; }
-    .section { margin-bottom: 28px; }
-    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9dde3; }
-    th, td { padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
-    th { background: #f8fafc; font-size: 14px; }
-    td { font-size: 14px; }
-    a { color: #1d4ed8; }
-    select { width: 100%; max-width: 180px; }
-    .empty { padding: 12px; background: #fff; border: 1px solid #d9dde3; color: #52606d; font-size: 14px; }
-    .count { color: #52606d; font-weight: normal; font-size: 14px; }
+    :root {
+      --bg: #f6f6fb;
+      --surface: #ffffff;
+      --border: #e6e6f0;
+      --text: #1f2333;
+      --text-muted: #6b7280;
+      --accent: #4f46e5;
+      --accent-soft: #eef2ff;
+      --success: #15803d;
+      --success-bg: #dcfce7;
+      --neutral-bg: #f1f5f9;
+      --neutral-text: #64748b;
+      --danger: #b91c1c;
+      --radius: 12px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.05);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .app-shell { max-width: 1080px; margin: 0 auto; padding: 32px 24px 72px; }
+    header.topbar h1 { margin: 0 0 12px; font-size: 22px; font-weight: 600; }
+    .policy-banner {
+      background: var(--accent-soft); color: #3730a3; border-radius: var(--radius);
+      padding: 10px 14px; font-size: 13px; margin: 0 0 24px;
+    }
+    nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px; flex-wrap: wrap; }
+    .tab-btn {
+      border: none; background: none; padding: 10px 16px; font-size: 14px; font-weight: 500;
+      color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 20px; margin-bottom: 20px;
+    }
+    .card h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+    .card .subtitle { color: var(--text-muted); font-size: 13px; margin: 0 0 14px; }
+    table.clean { width: 100%; border-collapse: collapse; }
+    table.clean th {
+      text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+      color: var(--text-muted); padding: 0 10px 8px; border-bottom: 1px solid var(--border);
+    }
+    table.clean td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+    table.clean tr:last-child td { border-bottom: none; }
+    a { color: var(--accent); text-decoration: none; font-weight: 500; }
+    a:hover { text-decoration: underline; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px;
+      border-radius: 999px; font-size: 12px; font-weight: 600;
+    }
+    .badge.yes { background: var(--success-bg); color: var(--success); }
+    .badge.no { background: var(--neutral-bg); color: var(--neutral-text); }
+    select, textarea, input:not([type="checkbox"]) {
+      border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font: inherit; background: #fff;
+      width: 100%;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    input[type="checkbox"] { width: auto; height: 16px; }
+    button {
+      border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 8px 14px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .empty { color: var(--text-muted); font-size: 14px; padding: 20px; text-align: center; }
+    .message { color: var(--success); font-size: 13px; margin-top: 8px; }
+    .error { color: var(--danger); font-size: 13px; margin-top: 8px; }
+    ul.activity-list { list-style: none; margin: 0; padding: 0; }
+    ul.activity-list li { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    ul.activity-list li:last-child { border-bottom: none; }
+    .activity-date { color: var(--text-muted); font-size: 12px; display: block; }
+    label.field { display: block; font-size: 13px; font-weight: 600; margin-bottom: 14px; }
+    label.field textarea, label.field input { margin-top: 6px; }
   </style>
 </head>
 <body>
-  <h1>Internship Review</h1>
-  <p id="location-policy" class="empty"></p>
-  <div id="postings"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <h1>Internship Review</h1>
+      <p id="location-policy" class="policy-banner"></p>
+    </header>
+    <nav class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="postings" type="button">Postings</button>
+      <button class="tab-btn" data-tab="companies" type="button">Companies</button>
+      <button class="tab-btn" data-tab="preferences" type="button">Preferences</button>
+      <button class="tab-btn" data-tab="files" type="button">Reference Files</button>
+      <button class="tab-btn" data-tab="activity" type="button">Activity Log</button>
+    </nav>
+    <main>
+      <section id="tab-postings" class="tab-panel active"><div id="postings"></div></section>
+      <section id="tab-companies" class="tab-panel"><div id="companies-panel"></div></section>
+      <section id="tab-preferences" class="tab-panel"><div id="preferences-panel"></div></section>
+      <section id="tab-files" class="tab-panel"><div id="files-panel"></div></section>
+      <section id="tab-activity" class="tab-panel"><div id="activity-panel"></div></section>
+    </main>
+  </div>
 
   <script>
     const statusLabels = {
-      "": "Not reviewed",
-      "interested": "Interested",
+      "to_review": "To review",
       "applied": "Applied",
-      "ignored": "Ignored",
-      "needs_follow_up": "Needs follow-up"
+      "not_interested": "Not interested",
+      "archived": "Archived"
     };
 
-    const statusOrder = ["interested", "applied", "needs_follow_up", "ignored"];
+    const statusOrder = ["to_review", "applied", "not_interested", "archived"];
 
     const sections = [
-      { key: "to_review", title: "To review", match: posting => !posting.review_status },
-      { key: "interested", title: "Interested", match: posting => posting.review_status === "interested" },
+      { key: "to_review", title: "To review", match: posting => posting.review_status === "to_review" },
       { key: "applied", title: "Applied", match: posting => posting.review_status === "applied" },
-      { key: "needs_follow_up", title: "Needs follow-up", match: posting => posting.review_status === "needs_follow_up" },
-      { key: "ignored", title: "Ignored", match: posting => posting.review_status === "ignored" }
+      { key: "not_interested", title: "Not interested", match: posting => posting.review_status === "not_interested" },
+      { key: "archived", title: "Archived", match: posting => posting.review_status === "archived" }
     ];
+    let dashboardIndustries = [];
 
     function orderedStatusOptions(statusOptions) {
       const remaining = statusOptions.filter(status => !statusOrder.includes(status));
       return statusOrder.filter(status => statusOptions.includes(status)).concat(remaining);
+    }
+
+    function initTabs() {
+      document.querySelectorAll(".tab-btn").forEach(button => {
+        button.addEventListener("click", () => switchTab(button.getAttribute("data-tab")));
+      });
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab-btn").forEach(button => {
+        button.classList.toggle("active", button.getAttribute("data-tab") === tabId);
+      });
+      document.querySelectorAll(".tab-panel").forEach(panel => {
+        panel.classList.toggle("active", panel.id === `tab-${tabId}`);
+      });
+      if (tabId === "files") {
+        renderReferenceFiles();
+      }
     }
 
     async function loadDashboard() {
@@ -236,7 +415,177 @@ def render_review_page() -> str:
       if (policy) {
         policy.textContent = data.location_policy || "";
       }
+      renderPreferences(data.preferences || { likes: [], dislikes: [] });
+      dashboardIndustries = data.industries || [];
+      renderCompaniesPanel(data.monitored_companies || []);
+      renderActivityLog(data.activity || []);
       renderPostings(data.postings, data.status_options);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function websiteUrl(website) {
+      const value = String(website || "").trim();
+      if (!value) {
+        return "";
+      }
+      const url = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+      return /^https?:\/\//i.test(url) ? url : "";
+    }
+
+    function renderCompaniesPanel(companies) {
+      const container = document.getElementById("companies-panel");
+      const rows = companies.map(companyRow).join("");
+      container.innerHTML = `
+        <div class="card">
+          <h2>Companies <span class="empty" style="display:inline;padding:0;">(${companies.length} monitored)</span></h2>
+          <p class="subtitle">Add, edit, or remove companies you're tracking. Use official career or jobs-search pages so links and collection target the right place. Saving updates your live source registry.</p>
+          <table class="clean" id="company-editor-table">
+            <thead><tr><th>Company</th><th>Career page</th><th>Know someone?</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div class="actions">
+            <button id="add-company" type="button">Add company</button>
+          </div>
+          <label class="field">Industries of interest<textarea id="industries-input">${escapeHtml(dashboardIndustries.join("\n"))}</textarea></label>
+          <div class="actions">
+            <button id="save-companies" class="primary" type="button">Save company list</button>
+          </div>
+          <p id="companies-message"></p>
+        </div>
+      `;
+      container.querySelector("#add-company").addEventListener("click", () => {
+        container.querySelector("tbody").insertAdjacentHTML("beforeend", companyRow({ name: "", careers_url: "", has_connection: false }));
+      });
+      container.querySelector("#save-companies").addEventListener("click", async () => {
+        const entries = [...container.querySelectorAll("tbody tr")].map(row => ({
+          name: row.querySelector('[data-field="name"]').value.trim(),
+          website: row.querySelector('[data-field="website"]').value.trim(),
+          has_connection: row.querySelector('[data-field="connection"]').checked,
+        })).filter(company => company.name || company.website);
+        const response = await postJson("/api/companies", {
+          companies: entries,
+          industries: listFromTextarea(container.querySelector("#industries-input").value),
+        });
+        showMessage(container.querySelector("#companies-message"), response, "Company list saved.");
+        if (response.ok) await loadDashboard();
+      });
+      container.querySelector("tbody").addEventListener("click", event => {
+        if (event.target.classList.contains("remove-company")) {
+          event.target.closest("tr").remove();
+        }
+      });
+    }
+
+    function renderPreferences(preferences) {
+      const container = document.getElementById("preferences-panel");
+      container.innerHTML = `
+        <div class="card">
+          <h2>Search preferences</h2>
+          <p class="subtitle">One preference per line. These settings are used by future scoring runs.</p>
+          <label class="field">Things I like<textarea id="likes-input">${escapeHtml((preferences.likes || []).join("\n"))}</textarea></label>
+          <label class="field">Things I don't like<textarea id="dislikes-input">${escapeHtml((preferences.dislikes || []).join("\n"))}</textarea></label>
+          <div class="actions"><button id="save-preferences" class="primary" type="button">Save preferences</button></div>
+          <p id="preferences-message"></p>
+        </div>
+      `;
+      container.querySelector("#save-preferences").addEventListener("click", async () => {
+        const response = await postJson("/api/preferences", {
+          likes: listFromTextarea(container.querySelector("#likes-input").value),
+          dislikes: listFromTextarea(container.querySelector("#dislikes-input").value),
+        });
+        showMessage(container.querySelector("#preferences-message"), response, "Preferences saved.");
+        if (response.ok) await loadDashboard();
+      });
+    }
+
+    function companyRow(company) {
+      return `<tr>
+        <td><input data-field="name" value="${escapeHtml(company.name || "")}" aria-label="Company name"></td>
+        <td><input data-field="website" value="${escapeHtml(company.careers_url || company.website || "")}" aria-label="Career page URL"></td>
+        <td><input data-field="connection" type="checkbox" ${company.has_connection ? "checked" : ""}></td>
+        <td><button class="remove-company" type="button">Remove</button></td>
+      </tr>`;
+    }
+
+    let referenceFilesLoaded = false;
+    async function renderReferenceFiles() {
+      const container = document.getElementById("files-panel");
+      if (referenceFilesLoaded) return;
+      container.innerHTML = '<p class="empty">Loading reference files…</p>';
+      const response = await fetch("/api/inputs");
+      const data = await response.json();
+      if (!response.ok) {
+        container.innerHTML = `<p class="error">${escapeHtml(data.error || "Unable to load reference files.")}</p>`;
+        return;
+      }
+      referenceFilesLoaded = true;
+      const labels = {
+        "mcgill_class_list.md": "Course and program information",
+        "connections.md": "Connection notes",
+        "resume_summary.md": "Resume summary",
+      };
+      container.innerHTML = Object.entries(data.files).map(([filename, content]) => `
+        <div class="card">
+          <h2>${escapeHtml(labels[filename] || filename)}</h2>
+          <textarea data-file="${escapeHtml(filename)}">${escapeHtml(content)}</textarea>
+          <div class="actions"><button data-save-file="${escapeHtml(filename)}" class="primary" type="button">Save</button></div>
+          <p class="save-message" data-message-for="${escapeHtml(filename)}"></p>
+        </div>
+      `).join("");
+      container.querySelectorAll("[data-save-file]").forEach(button => button.addEventListener("click", async () => {
+        const filename = button.getAttribute("data-save-file");
+        const content = container.querySelector(`[data-file="${filename}"]`).value;
+        const result = await postJson("/api/input-file", { filename, content });
+        showMessage(container.querySelector(`[data-message-for="${filename}"]`), result, `${filename} saved.`);
+        if (result.ok) {
+          await loadDashboard();
+          referenceFilesLoaded = false;
+          await renderReferenceFiles();
+        }
+      }));
+    }
+
+    function listFromTextarea(value) {
+      return value.split("\n").map(item => item.trim()).filter(Boolean);
+    }
+
+    async function postJson(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return { ok: response.ok, ...(await response.json()) };
+    }
+
+    function showMessage(element, response, success) {
+      element.className = response.ok ? "message" : "error";
+      element.textContent = response.ok ? success : response.error || "Save failed.";
+    }
+
+    function renderActivityLog(events) {
+      const container = document.getElementById("activity-panel");
+      if (!events.length) {
+        container.innerHTML = '<div class="card"><p class="empty">No activity has been logged yet.</p></div>';
+        return;
+      }
+      const entries = events.map(event => `
+        <li><span class="activity-date">${escapeHtml(event.date)}</span>${escapeHtml(event.action)}: ${escapeHtml(event.subject)}</li>
+      `).join("");
+      container.innerHTML = `
+        <div class="card">
+          <h2>Activity log <span class="empty" style="display:inline;padding:0;">(${events.length} recent actions)</span></h2>
+          <ul class="activity-list">${entries}</ul>
+        </div>
+      `;
     }
 
     function renderTable(postings, statusOptions) {
@@ -245,28 +594,36 @@ def render_review_page() -> str:
       }
 
       const rows = postings.map(posting => {
-        const options = ['<option value="">Not reviewed</option>']
-          .concat(orderedStatusOptions(statusOptions).map(status =>
+        const options = orderedStatusOptions(statusOptions).map(status =>
             `<option value="${status}" ${posting.review_status === status ? "selected" : ""}>${statusLabels[status]}</option>`
-          ));
+          );
+        const postingUrl = websiteUrl(posting.posting_url);
+        const postingLink = postingUrl
+          ? `<a href="${escapeHtml(postingUrl)}" target="_blank" rel="noopener noreferrer">Open posting</a>`
+          : "Posting URL unavailable";
+        const connectionBadge = posting.has_connection
+          ? '<span class="badge yes">Know someone</span>'
+          : '<span class="badge no">No connection</span>';
         return `
           <tr>
-            <td>${posting.title}</td>
-            <td>${posting.company}</td>
-            <td>${posting.location}</td>
-            <td><a href="${posting.posting_url}" target="_blank">Open posting</a></td>
+            <td>${escapeHtml(posting.title)}</td>
+            <td>${escapeHtml(posting.company)}</td>
+            <td>${escapeHtml(posting.location)}</td>
+            <td>${connectionBadge}</td>
+            <td>${postingLink}</td>
             <td><select data-url="${posting.posting_url}">${options.join("")}</select></td>
           </tr>
         `;
       }).join("");
 
       return `
-        <table>
+        <table class="clean">
           <thead>
             <tr>
               <th>Job title</th>
               <th>Company</th>
               <th>Location</th>
+              <th>Connection</th>
               <th>Link</th>
               <th>Review status</th>
             </tr>
@@ -279,7 +636,7 @@ def render_review_page() -> str:
     function renderPostings(postings, statusOptions) {
       const container = document.getElementById("postings");
       if (!postings.length) {
-        container.innerHTML = "";
+        container.innerHTML = '<div class="card"><p class="empty">No internships in this list.</p></div>';
         return;
       }
 
@@ -291,13 +648,13 @@ def render_review_page() -> str:
         .filter(section => section.sectionPostings.length);
 
       if (!visibleSections.length) {
-        container.innerHTML = "";
+        container.innerHTML = '<div class="card"><p class="empty">No internships in this list.</p></div>';
         return;
       }
 
       container.innerHTML = visibleSections.map(section => `
-          <div class="section">
-            <h2>${section.title} <span class="count">(${section.sectionPostings.length})</span></h2>
+          <div class="card">
+            <h2>${section.title} <span class="empty" style="display:inline;padding:0;">(${section.sectionPostings.length})</span></h2>
             ${renderTable(section.sectionPostings, statusOptions)}
           </div>
         `).join("");
@@ -316,7 +673,13 @@ def render_review_page() -> str:
       });
     }
 
+    initTabs();
     loadDashboard();
+    setInterval(() => {
+      if (!document.querySelector("textarea:focus, input:focus")) {
+        loadDashboard();
+      }
+    }, 30000);
   </script>
 </body>
 </html>"""

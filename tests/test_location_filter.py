@@ -16,6 +16,7 @@ def test_matches_allowed_location_accepts_israel():
 def test_matches_allowed_location_accepts_remote():
     assert matches_allowed_location("Remote")
     assert matches_allowed_location("Fully remote - US")
+    assert matches_allowed_location("Online")
     assert matches_allowed_location("Unknown", "Remote Analyst Program")
 
 

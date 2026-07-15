@@ -50,6 +50,7 @@ ISRAEL_MARKERS = (
 
 REMOTE_MARKERS = (
     "remote",
+    "online",
     "virtual",
     "work from home",
     "work-from-home",

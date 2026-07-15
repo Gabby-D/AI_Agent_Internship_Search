@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html as html_module
 import json
 import re
 from dataclasses import dataclass
@@ -52,6 +53,11 @@ JSON_LD_SCRIPT_RE = re.compile(
 )
 SERVER_INITIAL_DATA_RE = re.compile(
     r"serverInitialData\s*=\s*(\{.*?\})\s*;",
+    re.DOTALL,
+)
+Y_COMBINATOR_JOB_RECORD_RE = re.compile(
+    r'\{[^{}]*"title":"(?P<title>[^"]+)"[^{}]*"url":"(?P<url>[^"]+)"'
+    r'[^{}]*"location":"(?P<location>[^"]*)"',
     re.DOTALL,
 )
 
@@ -122,6 +128,8 @@ def resolve_collector_strategies(source: CompanySource) -> tuple[str, ...]:
             return ("blackrock_jobs", "json_ld", "embedded_json")
         if source.collector == "pwc_jobs":
             return ("pwc_jobs", "json_ld", "embedded_json")
+        if source.collector == "ycombinator_jobs":
+            return ("ycombinator_jobs",)
         return (source.collector,)
 
     normalized_name = normalize_company_name(source.company)
@@ -157,6 +165,8 @@ def run_collector_strategy(
         return collect_embedded_json_postings(source, html, collected_date)
     if strategy == "consider_board":
         return collect_consider_board_postings(source, html, collected_date)
+    if strategy == "ycombinator_jobs":
+        return collect_ycombinator_postings(source, html, collected_date)
     if strategy == "direct_job_url":
         return collect_direct_job_url_posting(source, collected_date)
     if strategy == "generic_links":
@@ -168,6 +178,38 @@ def run_collector_strategy(
             collected_date=collected_date,
         )
     return []
+
+
+def collect_ycombinator_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+) -> list[JobPosting]:
+    """Extract posting records from Y Combinator's HTML-escaped job payload."""
+
+    postings: list[JobPosting] = []
+    seen_urls: set[str] = set()
+    for match in Y_COMBINATOR_JOB_RECORD_RE.finditer(html_module.unescape(html)):
+        posting_url = normalize_link(source.careers_url, match.group("url"))
+        title = clean_title(match.group("title"))
+        if (
+            not posting_url
+            or posting_url in seen_urls
+            or not is_specific_internship_listing(title, posting_url)
+        ):
+            continue
+        seen_urls.add(posting_url)
+        postings.append(
+            JobPosting(
+                title=title,
+                company=source.company,
+                location=clean_title(match.group("location")) or "Unknown",
+                posting_url=posting_url,
+                date_collected=collected_date,
+                source_url=source.careers_url,
+            )
+        )
+    return postings
 
 
 def collect_blackrock_postings(

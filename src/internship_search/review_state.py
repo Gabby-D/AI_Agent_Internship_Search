@@ -15,8 +15,14 @@ from internship_search.private_inputs import Preferences, load_private_inputs
 from internship_search.source_registry import read_source_registry
 
 
-REVIEW_STATUSES = ("interested", "applied", "ignored", "needs_follow_up")
+REVIEW_STATUSES = ("to_review", "applied", "not_interested", "archived")
 EMAIL_STATUSES = ("ready", "emailed", "inactive", "not_scored", "excluded")
+LEGACY_REVIEW_STATUSES = {
+    "": "to_review",
+    "interested": "to_review",
+    "ignored": "not_interested",
+    "needs_follow_up": "to_review",
+}
 
 
 @dataclass(frozen=True)
@@ -61,15 +67,25 @@ def load_review_dashboard(
     filters: ReviewFilters | None = None,
 ) -> dict:
     data_path = Path(data_dir)
+    private_inputs = load_private_inputs(private_dir)
     scored_by_url = {
         posting.posting_url: posting
         for posting in read_scored_postings_jsonl(data_path / "scored_postings.jsonl")
     }
     reviews = read_posting_reviews(data_path / "posting_reviews.json")
+    registry_path = data_path / "source_registry.json"
+    sources = read_source_registry(registry_path) if registry_path.exists() else []
     connection_by_company = {
         source.company: source.has_connection
-        for source in read_source_registry(data_path / "source_registry.json")
+        for source in sources
     }
+    careers_url_by_company = {source.company: source.careers_url for source in sources}
+    connection_by_company.update(
+        {
+            company.name: company.has_connection
+            for company in private_inputs.companies
+        }
+    )
     sent_urls = read_sent_history(data_path / "email_sent_history.json")
     inactive_urls = inactive_posting_urls(read_history(data_path / "posting_history.json"))
     new_posting_urls = {
@@ -89,7 +105,7 @@ def load_review_dashboard(
                 filtered=filtered,
                 included=True,
                 scored=scored,
-                review_status=reviews.get(filtered.posting_url, ""),
+                review_status=normalize_review_status(reviews.get(filtered.posting_url, "")),
                 has_connection=connection_by_company.get(filtered.company, False),
                 is_new=filtered.posting_url in new_posting_urls,
                 sent_urls=sent_urls,
@@ -103,7 +119,22 @@ def load_review_dashboard(
 
     return {
         "postings": [asdict(posting) for posting in filtered_postings],
-        "preferences": load_ui_preferences(private_dir, data_path / "ui_preferences.json"),
+        "preferences": {
+            "likes": private_inputs.preferences.likes,
+            "dislikes": private_inputs.preferences.dislikes,
+            "source": "private",
+        },
+        "activity": read_activity_log(data_path / "activity_log.jsonl"),
+        "monitored_companies": [
+            {
+                "name": company.name,
+                "website": company.website,
+                "careers_url": careers_url_by_company.get(company.name, company.website),
+                "has_connection": company.has_connection,
+            }
+            for company in private_inputs.companies
+        ],
+        "industries": private_inputs.industries,
         "status_options": list(REVIEW_STATUSES),
         "filter_options": {
             "companies": companies,
@@ -158,6 +189,11 @@ def build_reviewable_posting(
     )
 
 
+def normalize_review_status(status: str) -> str:
+    normalized = status.strip().lower()
+    return LEGACY_REVIEW_STATUSES.get(normalized, normalized or "to_review")
+
+
 def classify_email_status(
     *,
     included: bool,
@@ -207,8 +243,6 @@ def filter_review_postings(
 def matches_review_status(posting: ReviewablePosting, review_status: str | None) -> bool:
     if not review_status or review_status == "any":
         return True
-    if review_status == "not_reviewed":
-        return posting.review_status == ""
     return posting.review_status == review_status
 
 
@@ -241,13 +275,13 @@ def build_review_summary(postings: list[ReviewablePosting]) -> dict[str, int]:
         "email_ready": sum(1 for posting in postings if posting.email_status == "ready"),
         "emailed": sum(1 for posting in postings if posting.email_status == "emailed"),
         "new_postings": sum(1 for posting in postings if posting.is_new),
-        "not_reviewed": sum(1 for posting in postings if posting.review_status == ""),
+        "to_review": sum(1 for posting in postings if posting.review_status == "to_review"),
     }
 
 
 def review_posting_sort_key(posting: ReviewablePosting) -> tuple:
     return (
-        posting.review_status == "",
+        posting.review_status == "to_review",
         not posting.included,
         posting.email_status != "ready",
         -(posting.score or 0),
@@ -312,6 +346,44 @@ def save_ui_preferences(
     return path
 
 
+def append_activity_log(
+    action: str,
+    subject: str,
+    details: dict | None = None,
+    output_path: Path | str = "data/activity_log.jsonl",
+) -> Path:
+    """Append a dated local audit event for a user action."""
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc)
+    event = {
+        "timestamp": timestamp.isoformat(),
+        "date": timestamp.date().isoformat(),
+        "action": action,
+        "subject": subject,
+        "details": details or {},
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event) + "\n")
+    return path
+
+
+def read_activity_log(
+    path: Path | str = "data/activity_log.jsonl",
+    limit: int = 50,
+) -> list[dict]:
+    log_path = Path(path)
+    if not log_path.exists():
+        return []
+    events = [
+        json.loads(line)
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    return list(reversed(events[-limit:]))
+
+
 def read_posting_reviews(path: Path | str) -> dict[str, str]:
     reviews_path = Path(path)
     if not reviews_path.exists():
@@ -329,8 +401,8 @@ def set_posting_review(
     status: str,
     output_path: Path | str = "data/posting_reviews.json",
 ) -> ReviewEntry:
-    normalized_status = status.strip().lower()
-    if normalized_status and normalized_status not in REVIEW_STATUSES:
+    normalized_status = normalize_review_status(status)
+    if normalized_status not in REVIEW_STATUSES:
         raise ValueError(f"Unsupported review status: {status}")
 
     path = Path(output_path)
@@ -340,13 +412,10 @@ def set_posting_review(
         raw = json.loads(path.read_text(encoding="utf-8"))
 
     updated_at = datetime.now(timezone.utc).isoformat()
-    if normalized_status:
-        raw.setdefault("reviews", {})[posting_url] = {
-            "status": normalized_status,
-            "updated_at": updated_at,
-        }
-    else:
-        raw.setdefault("reviews", {}).pop(posting_url, None)
+    raw.setdefault("reviews", {})[posting_url] = {
+        "status": normalized_status,
+        "updated_at": updated_at,
+    }
 
     path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
     return ReviewEntry(

@@ -4,7 +4,7 @@ Use this folder for tasks that are actively being designed or implemented.
 
 ## Current Milestone
 
-Build the first local end-to-end flow for collecting, filtering, and reviewing Summer 2027 internship postings from the initial company list.
+Validate the completed local workflow with live sources, then confirm that recurring collection and weekly email delivery are production-ready.
 
 ## Task Order
 
@@ -12,7 +12,7 @@ No active current tasks. The first local collection, filtering, and review miles
 
 ## Current Focus
 
-Choose the next task from `spec/future_tasks/` and move it into this folder when it is ready to implement.
+Start with `spec/future_tasks/032-live-workflow-validation.md` and move it into this folder when work begins. Scheduler production validation and release readiness follow as tasks 033 and 034.
 
 ## Code Style Instructions
 

@@ -5,6 +5,7 @@ from internship_search.career_collectors import (
     collect_json_ld_postings,
     collect_pwc_postings,
     collect_postings_for_source,
+    collect_ycombinator_postings,
     company_names_match,
     consider_board_empty_warning,
 )
@@ -82,6 +83,32 @@ PWC_HTML = """
   </body>
 </html>
 """
+
+YCOMBINATOR_HTML = """
+<script>
+{&quot;jobPostings&quot;:[{&quot;id&quot;:97830,&quot;title&quot;:&quot;Business Operations Intern&quot;,
+&quot;url&quot;:&quot;/companies/relling/jobs/ZFJwHfg-business-operations-intern&quot;,
+&quot;applyUrl&quot;:&quot;https://account.ycombinator.com/authenticate&quot;,
+&quot;location&quot;:&quot;San Francisco, CA, US&quot;,&quot;type&quot;:&quot;Internship&quot;}]}
+</script>
+"""
+
+
+def test_collect_ycombinator_postings_preserves_listing_location():
+    postings = collect_ycombinator_postings(
+        make_source(
+            company="Relling",
+            careers_url="https://www.ycombinator.com/companies/relling/jobs",
+            collector="ycombinator_jobs",
+        ),
+        YCOMBINATOR_HTML,
+        "2026-07-15",
+    )
+
+    assert len(postings) == 1
+    assert postings[0].title == "Business Operations Intern"
+    assert postings[0].location == "San Francisco, CA, US"
+    assert postings[0].posting_url.endswith("business-operations-intern")
 
 
 def test_collect_blackrock_postings_extracts_internship_job_urls():

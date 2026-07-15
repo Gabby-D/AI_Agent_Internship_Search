@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable, Mapping, Sequence
 
 
 class PrivateInputError(ValueError):
@@ -48,6 +49,13 @@ class PrivateInputs:
     resume_path: Path | None
 
 
+_COMPANIES_FILENAME = "list_of_companies.md"
+_PREFERENCES_FILENAME = "preferences.md"
+_EDITABLE_TEXT_FILENAMES = frozenset(
+    {"mcgill_class_list.md", "connections.md", "resume_summary.md"}
+)
+
+
 def load_private_inputs(private_dir: Path | str = "private") -> PrivateInputs:
     """Load all current private inputs from the local private directory."""
 
@@ -73,6 +81,83 @@ def load_private_inputs(private_dir: Path | str = "private") -> PrivateInputs:
         connections_notes=connections_notes,
         resume_path=resume_path if resume_path.exists() else None,
     )
+
+
+def read_companies(
+    private_dir: Path | str = "private",
+) -> tuple[list[Company], list[str]]:
+    """Read the editable company and industry lists."""
+
+    return parse_companies_file(
+        _read_required_file(Path(private_dir) / _COMPANIES_FILENAME)
+    )
+
+
+def replace_companies(
+    companies: Sequence[Company | Mapping[str, object]],
+    industries: Sequence[str],
+    private_dir: Path | str = "private",
+) -> None:
+    """Replace all companies and industries with a validated Markdown document."""
+
+    normalized_companies = [_coerce_company(company) for company in companies]
+    normalized_industries = [_validate_list_value(industry, "Industry") for industry in industries]
+    content = _format_companies_file(normalized_companies, normalized_industries)
+    _write_validated_file(
+        Path(private_dir) / _COMPANIES_FILENAME,
+        content,
+        parse_companies_file,
+    )
+
+
+def read_preferences(private_dir: Path | str = "private") -> Preferences:
+    """Read the editable preference lists."""
+
+    return parse_preferences_file(
+        _read_required_file(Path(private_dir) / _PREFERENCES_FILENAME)
+    )
+
+
+def replace_preferences(
+    likes: Sequence[str],
+    dislikes: Sequence[str],
+    private_dir: Path | str = "private",
+) -> None:
+    """Replace likes and dislikes with a validated Markdown document."""
+
+    content = _format_preferences_file(
+        [_validate_list_value(like, "Like") for like in likes],
+        [_validate_list_value(dislike, "Dislike") for dislike in dislikes],
+    )
+    _write_validated_file(
+        Path(private_dir) / _PREFERENCES_FILENAME,
+        content,
+        parse_preferences_file,
+    )
+
+
+def read_editable_text(
+    filename: str,
+    private_dir: Path | str = "private",
+) -> str:
+    """Read one of the raw text files exposed for editing."""
+
+    return _read_optional_file(_editable_text_path(filename, private_dir))
+
+
+def write_editable_text(
+    filename: str,
+    content: str,
+    private_dir: Path | str = "private",
+) -> None:
+    """Write an editable raw text file, validating course data when applicable."""
+
+    if not isinstance(content, str):
+        raise PrivateInputError("Editable text content must be a string.")
+
+    path = _editable_text_path(filename, private_dir)
+    validator = parse_course_file if filename == "mcgill_class_list.md" else None
+    _write_validated_file(path, content, validator)
 
 
 def parse_companies_file(content: str) -> tuple[list[Company], list[str]]:
@@ -194,6 +279,96 @@ def _read_optional_file(path: Path) -> str:
     if not path.exists():
         return ""
     return path.read_text(encoding="utf-8")
+
+
+def _editable_text_path(filename: str, private_dir: Path | str) -> Path:
+    if filename not in _EDITABLE_TEXT_FILENAMES:
+        allowed = ", ".join(sorted(_EDITABLE_TEXT_FILENAMES))
+        raise PrivateInputError(f"Unsupported editable text file: {filename}. Allowed: {allowed}")
+    return Path(private_dir) / filename
+
+
+def _write_validated_file(
+    path: Path,
+    content: str,
+    validator: Callable[[str], object] | None,
+) -> None:
+    """Validate supplied content before and after its UTF-8 write."""
+
+    if validator:
+        validator(content)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    if validator:
+        validator(_read_required_file(path))
+
+
+def _coerce_company(company: Company | Mapping[str, object]) -> Company:
+    if isinstance(company, Company):
+        name, website, has_connection = (
+            company.name,
+            company.website,
+            company.has_connection,
+        )
+    elif isinstance(company, Mapping):
+        required_fields = {"name", "website", "has_connection"}
+        missing_fields = required_fields - company.keys()
+        if missing_fields:
+            missing = ", ".join(sorted(missing_fields))
+            raise PrivateInputError(f"Company row is missing required fields: {missing}")
+        name = company["name"]
+        website = company["website"]
+        has_connection = company["has_connection"]
+    else:
+        raise PrivateInputError("Each company row must be a Company or mapping.")
+
+    if not isinstance(has_connection, bool):
+        raise PrivateInputError("Company has_connection must be a boolean.")
+    return Company(
+        name=_validate_table_value(name, "Company name"),
+        website=_validate_table_value(website, "Company website"),
+        has_connection=has_connection,
+    )
+
+
+def _validate_table_value(value: object, label: str) -> str:
+    result = _validate_list_value(value, label)
+    if "|" in result or "\n" in result or "\r" in result:
+        raise PrivateInputError(f"{label} cannot contain Markdown table separators.")
+    return result
+
+
+def _validate_list_value(value: object, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise PrivateInputError(f"{label} must be a non-empty string.")
+    return value.strip()
+
+
+def _format_companies_file(companies: Sequence[Company], industries: Sequence[str]) -> str:
+    lines = [
+        "# List of Companies",
+        "",
+        "| Name | Website | I know someone in the company |",
+        "|------|---------|-------------------------------|",
+    ]
+    lines.extend(
+        f"| {company.name} | {company.website} | "
+        f"{'yes' if company.has_connection else 'no'} |"
+        for company in companies
+    )
+    lines.extend(["", "## Industries of interest"])
+    lines.extend(f"- {industry}" for industry in industries)
+    return "\n".join(lines) + "\n"
+
+
+def _format_preferences_file(likes: Sequence[str], dislikes: Sequence[str]) -> str:
+    lines = ["# Preferences", "", "## Things I like"]
+    lines.extend(f"{index}. {like}" for index, like in enumerate(likes, start=1))
+    lines.extend(["", "## Things I don't like"])
+    lines.extend(
+        f"{index}. {dislike}" for index, dislike in enumerate(dislikes, start=1)
+    )
+    return "\n".join(lines) + "\n"
 
 
 def _parse_markdown_sections(content: str) -> dict[str, list[str]]:

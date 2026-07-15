@@ -7,6 +7,7 @@ from internship_search.posting_filter import FilteredPosting, write_filtered_pos
 from internship_search.review_state import (
     ReviewFilters,
     ReviewablePosting,
+    append_activity_log,
     classify_email_status,
     filter_review_postings,
     load_review_dashboard,
@@ -14,6 +15,7 @@ from internship_search.review_state import (
     matches_location_filter,
     parse_review_filters,
     read_posting_reviews,
+    read_activity_log,
     save_ui_preferences,
     set_posting_review,
 )
@@ -95,23 +97,23 @@ def write_private_inputs(private_dir):
     )
 
 
-def test_set_posting_review_writes_and_clears_status(tmp_path):
+def test_set_posting_review_writes_to_review_status(tmp_path):
     reviews_path = tmp_path / "posting_reviews.json"
     entry = set_posting_review(
         posting_url="https://example.com/jobs/1",
-        status="interested",
+        status="applied",
         output_path=reviews_path,
     )
 
-    assert entry.status == "interested"
-    assert read_posting_reviews(reviews_path) == {"https://example.com/jobs/1": "interested"}
+    assert entry.status == "applied"
+    assert read_posting_reviews(reviews_path) == {"https://example.com/jobs/1": "applied"}
 
     set_posting_review(
         posting_url="https://example.com/jobs/1",
-        status="",
+        status="to_review",
         output_path=reviews_path,
     )
-    assert read_posting_reviews(reviews_path) == {}
+    assert read_posting_reviews(reviews_path) == {"https://example.com/jobs/1": "to_review"}
 
 
 def test_save_ui_preferences_writes_likes_and_dislikes(tmp_path):
@@ -125,6 +127,19 @@ def test_save_ui_preferences_writes_likes_and_dislikes(tmp_path):
     raw = json.loads(output_path.read_text(encoding="utf-8"))
     assert raw["likes"] == ["Paid position", "Bay Area"]
     assert raw["dislikes"] == ["marketing"]
+
+
+def test_activity_log_is_dated_and_newest_first(tmp_path):
+    log_path = tmp_path / "activity_log.jsonl"
+    append_activity_log("company_list_updated", "company list", {"count": 2}, log_path)
+    append_activity_log("opportunity_status_updated", "https://example.com/jobs/1", {}, log_path)
+
+    events = read_activity_log(log_path)
+
+    assert len(events) == 2
+    assert events[0]["action"] == "opportunity_status_updated"
+    assert events[0]["date"]
+    assert events[1]["details"] == {"count": 2}
 
 
 def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
@@ -149,7 +164,7 @@ def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
     write_sent_history({"https://example.com/jobs/3"}, data_dir / "email_sent_history.json")
     set_posting_review(
         posting_url="https://example.com/jobs/1",
-        status="needs_follow_up",
+        status="to_review",
         output_path=data_dir / "posting_reviews.json",
     )
 
@@ -160,7 +175,7 @@ def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
 
     assert included["score"] == 80
     assert included["provider"] == "local_rule_based"
-    assert included["review_status"] == "needs_follow_up"
+    assert included["review_status"] == "to_review"
     assert included["has_connection"] is True
     assert included["is_new"] is True
     assert included["email_status"] == "ready"
@@ -170,6 +185,52 @@ def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
     assert dashboard["summary"]["new_postings"] == 1
     assert dashboard["preferences"]["likes"] == ["Paid position"]
     assert "Connected Co" in dashboard["filter_options"]["companies"]
+    assert dashboard["monitored_companies"] == [
+        {
+            "name": "Connected Co",
+            "website": "https://example.com",
+            "careers_url": "https://example.com/careers",
+            "has_connection": True,
+        }
+    ]
+
+
+def test_load_review_dashboard_uses_live_company_connection_status(tmp_path):
+    data_dir = tmp_path / "data"
+    private_dir = tmp_path / "private"
+    write_private_inputs(private_dir)
+    write_filtered_postings_jsonl(
+        [make_filtered_posting()],
+        data_dir / "filtered_postings.jsonl",
+    )
+    write_source_registry([make_source()], data_dir / "source_registry.json")
+
+    (private_dir / "list_of_companies.md").write_text(
+        "# List of Companies\n\n"
+        "| Name | Website | I know someone in the company |\n"
+        "|------|---------|-------------------------------|\n"
+        "| Connected Co | https://example.com | no |\n"
+        "| New Co | https://new.example | yes |\n",
+        encoding="utf-8",
+    )
+
+    dashboard = load_review_dashboard(data_dir, private_dir)
+
+    assert dashboard["postings"][0]["has_connection"] is False
+    assert dashboard["monitored_companies"] == [
+        {
+            "name": "Connected Co",
+            "website": "https://example.com",
+            "careers_url": "https://example.com/careers",
+            "has_connection": False,
+        },
+        {
+            "name": "New Co",
+            "website": "https://new.example",
+            "careers_url": "https://new.example",
+            "has_connection": True,
+        },
+    ]
 
 
 def make_job_posting(url: str = "https://example.com/jobs/1") -> JobPosting:
@@ -427,15 +488,39 @@ def test_render_review_page_includes_dashboard_controls():
     assert "Internship Review" in page
     assert "/api/dashboard" in page
     assert "To review" in page
-    assert "Interested" in page
     assert "Applied" in page
-    assert "Ignored" in page
-    assert "Needs follow-up" in page
-    assert page.index('key: "needs_follow_up"') < page.index('key: "ignored"')
+    assert "Not interested" in page
+    assert "Archived" in page
+    assert page.index('key: "not_interested"') < page.index('key: "archived"')
     assert "Job title" in page
     assert "Open posting" in page
     assert "location-policy" in page
     assert "location_policy" in page or "/api/dashboard" in page
+    assert "monitored_companies" in page
+    assert "}, 30000);" in page
+    assert "Activity log" in page
+    assert "/api/companies" in page
+    assert "/api/input-file" in page
+
+
+def test_render_review_page_uses_tabbed_navigation():
+    page = render_review_page()
+
+    for tab_id in ("postings", "companies", "preferences", "files", "activity"):
+        assert f'data-tab="{tab_id}"' in page
+        assert f'id="tab-{tab_id}"' in page
+    assert "Reference Files" in page
+    assert "switchTab" in page
+    assert "initTabs()" in page
+
+
+def test_render_review_page_shows_connection_indicator_for_postings():
+    page = render_review_page()
+
+    assert "Know someone" in page
+    assert "posting.has_connection" in page
+    assert "badge yes" in page
+    assert "badge no" in page
 
 
 def test_is_address_in_use_detects_windows_port_conflict():
