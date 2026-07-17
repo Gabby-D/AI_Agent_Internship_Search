@@ -24,3 +24,5 @@ The standalone legacy resume PDF is only checked for existence and is not parsed
 - `course_list.md` uses a `## Program` section and course sections whose list items follow `COURSE CODE: Course title`.
 
 Everything in this directory is ignored by git except this README and `.gitkeep`. Confirm with `git check-ignore private/<filename>` before staging changes.
+
+The packaged Windows app does not embed this directory. `app/Internship Search.exe` reads these files locally at runtime.

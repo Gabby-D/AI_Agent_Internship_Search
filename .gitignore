@@ -220,6 +220,10 @@ data/*
 !data/README.md
 !data/.gitkeep
 
+# Local Windows app build artifacts
+app/
+.pyinstaller-build/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

@@ -74,6 +74,18 @@ uv run internship-search review-ui
 
 Then open **http://127.0.0.1:8765**. The command auto-opens your browser. **Keep that terminal open** — closing it stops the site.
 
+### One-click Windows app
+
+Build the local windowed app once:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File config/build_windows_app.ps1 -Clean
+```
+
+Then double-click `app/Internship Search.exe`. It starts the local dashboard and opens the browser without showing a terminal. The executable contains program code only; it continues reading personal inputs and generated results from the ignored `private/` and `data/` folders beside the project. Keep the executable in the project's `app/` folder so it can locate those folders.
+
+If the dashboard is already running and healthy, opening the app simply reopens it in the browser. Startup errors are written locally to `data/app_launcher.log`.
+
 ## Core Workflow
 
 The main repeatable pipeline:
