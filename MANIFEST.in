@@ -1,0 +1,11 @@
+# Never include local personal data, generated results, credentials, or builds.
+prune private
+prune data
+prune app
+prune .pyinstaller-build
+prune .venv
+prune .uv-cache
+exclude .env
+exclude .env.*
+global-exclude *.py[cod]
+global-exclude __pycache__

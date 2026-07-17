@@ -13,11 +13,14 @@ Build a simple, useful local internship search workflow that can:
 
 ## Quick Start
 
-### 1. Install dependencies
+### 1. Install the standard Python package
 
 ```powershell
-uv sync
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
 ```
+
+The project uses standard `pyproject.toml` and setuptools packaging. `uv sync` remains supported as an optional faster installer. See `INSTALL.md` for standard `pip`, `uv`, testing, package-building, and Windows-app instructions.
 
 ### 2. Add private inputs
 
@@ -79,6 +82,7 @@ Then open **http://127.0.0.1:8765**. The command auto-opens your browser. **Keep
 Build the local windowed app once:
 
 ```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[app]"
 powershell -ExecutionPolicy Bypass -File config/build_windows_app.ps1 -Clean
 ```
 
@@ -347,11 +351,14 @@ See `data/README.md` for the full list.
 
 ## Development
 
-Run tests:
+Install development tools and run tests:
 
 ```powershell
-uv run pytest
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest
 ```
+
+Equivalent `uv` commands are `uv sync --extra dev` and `uv run pytest`.
 
 Print CLI version:
 

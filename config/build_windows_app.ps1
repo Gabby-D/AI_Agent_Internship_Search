@@ -10,7 +10,7 @@ $AppDir = Join-Path $ProjectRoot "app"
 $WorkDir = Join-Path $ProjectRoot ".pyinstaller-build"
 
 if (-not (Test-Path $Python)) {
-    throw "Project Python environment not found at $Python. Run 'uv sync --dev' first."
+    throw "Project Python environment not found at $Python. Create it and install the app extra first."
 }
 
 if ($Clean) {

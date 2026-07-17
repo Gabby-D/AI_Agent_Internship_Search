@@ -7,6 +7,7 @@ This file explains the current project layout and where new functionality should
 - `src/internship_search/cli.py` defines the command line interface.
 - `src/internship_search/__main__.py` lets the package run with `python -m internship_search`.
 - `pyproject.toml` exposes the installed CLI command as `internship-search`.
+- `INSTALL.md` documents standard `venv`/`pip`, optional `uv`, package builds, and the windowed app.
 
 Current CLI commands:
 
@@ -84,6 +85,15 @@ Suggested future modules:
 - `config/run_scheduled_collection.ps1` runs the workflow and writes console logs under `data/scheduled_run_output/`.
 - `config/run_weekly_email.ps1` sends the weekly email summary and writes console logs under `data/scheduled_run_output/`.
 - `config/windows_task_scheduler.example.ps1` shows how to register a single local scheduled task.
+
+## Packaging
+
+- The project is a standard setuptools package using the `src/` layout.
+- Runtime installation has no third-party dependencies; testing, package building, and app building are standard optional extras.
+- `MANIFEST.in` excludes credentials, private inputs, generated data, virtual environments, caches, and Windows-app artifacts from source distributions.
+- `config/windows_app_entry.py` is the no-terminal Windows dashboard entry point.
+- `config/build_windows_app.ps1` builds the local ignored `app/Internship Search.exe` with PyInstaller.
+- The packaged app reads `private/` and `data/` at runtime; those folders are never bundled into the executable.
 
 ## Local Data
 

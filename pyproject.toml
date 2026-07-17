@@ -13,8 +13,12 @@ dependencies = []
 [project.scripts]
 internship-search = "internship_search.cli:main"
 
-[dependency-groups]
+[project.optional-dependencies]
+test = ["pytest"]
+app = ["pyinstaller>=6.21.0"]
+build = ["build>=1.2"]
 dev = [
+    "build>=1.2",
     "pyinstaller>=6.21.0",
     "pytest",
 ]
