@@ -16,7 +16,9 @@ from internship_search.review_state import (
     parse_review_filters,
     read_posting_reviews,
     read_activity_log,
+    read_posting_notes,
     save_ui_preferences,
+    set_posting_note,
     set_posting_review,
 )
 from internship_search.review_ui import is_address_in_use, render_review_page
@@ -142,6 +144,24 @@ def test_activity_log_is_dated_and_newest_first(tmp_path):
     assert events[1]["details"] == {"count": 2}
 
 
+def test_posting_notes_round_trip_and_clear(tmp_path):
+    notes_path = tmp_path / "posting_notes.json"
+
+    saved = set_posting_note(
+        "https://example.com/jobs/1",
+        "Ask about the team structure.",
+        notes_path,
+    )
+
+    assert saved == "Ask about the team structure."
+    assert read_posting_notes(notes_path) == {
+        "https://example.com/jobs/1": "Ask about the team structure."
+    }
+
+    set_posting_note("https://example.com/jobs/1", "", notes_path)
+    assert read_posting_notes(notes_path) == {}
+
+
 def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
     data_dir = tmp_path / "data"
     private_dir = tmp_path / "private"
@@ -167,6 +187,11 @@ def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
         status="to_review",
         output_path=data_dir / "posting_reviews.json",
     )
+    set_posting_note(
+        "https://example.com/jobs/1",
+        "Follow up after the information session.",
+        data_dir / "posting_notes.json",
+    )
 
     dashboard = load_review_dashboard(data_dir, private_dir)
     included = next(item for item in dashboard["postings"] if item["included"])
@@ -181,6 +206,23 @@ def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
     assert included["email_status"] == "ready"
     assert included["explanations"] == ["Company has a known connection."]
     assert included["gaps"] == ["Deadline is unknown."]
+    expected_summary = (
+        "Role: 2027 Summer Intern\n"
+        "Company: Connected Co\n"
+        "Location: Remote\n"
+        "Work Arrangement: Remote\n"
+        "Program or Team: Unknown\n"
+        "Timing: 2027\n"
+        "Responsibilities: Unknown (posting body not stored)\n"
+        "Qualifications: Unknown (posting body not stored)\n"
+        "Application Deadline: Unknown"
+    )
+    assert included["summary"] == expected_summary
+    assert included["highlights"] == [
+        "Professional internship program opportunity.",
+        "Fully remote work arrangement option."
+    ]
+    assert included["notes"] == "Follow up after the information session."
     assert dashboard["summary"]["email_ready"] == 1
     assert dashboard["summary"]["new_postings"] == 1
     assert dashboard["preferences"]["likes"] == ["Paid position"]
@@ -191,6 +233,7 @@ def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
             "website": "https://example.com",
             "careers_url": "https://example.com/careers",
             "has_connection": True,
+            "connection_name": "",
         }
     ]
 
@@ -223,12 +266,14 @@ def test_load_review_dashboard_uses_live_company_connection_status(tmp_path):
             "website": "https://example.com",
             "careers_url": "https://example.com/careers",
             "has_connection": False,
+            "connection_name": "",
         },
         {
             "name": "New Co",
             "website": "https://new.example",
             "careers_url": "https://new.example",
             "has_connection": True,
+            "connection_name": "",
         },
     ]
 
@@ -523,9 +568,75 @@ def test_render_review_page_shows_connection_indicator_for_postings():
     assert "badge no" in page
 
 
+def test_render_review_page_includes_posting_summaries_and_notes():
+    page = render_review_page()
+
+    assert "Summary &amp; notes" in page
+    assert "Highlights" in page
+    assert "Your notes" in page
+    assert "/api/note" in page
+    assert "data-save-note" in page
+
+
 def test_is_address_in_use_detects_windows_port_conflict():
     error = OSError("address already in use")
     error.winerror = 10048
 
     assert is_address_in_use(error) is True
     assert is_address_in_use(OSError("permission denied")) is False
+
+
+def test_load_review_dashboard_handles_suggestions_and_dismissals(tmp_path):
+    data_dir = tmp_path / "data"
+    private_dir = tmp_path / "private"
+    write_private_inputs(private_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 1. Write suggested companies
+    suggestions = [
+        {
+            "name": "Lockheed Martin",
+            "website": "https://www.lockheedmartin.com",
+            "careers_url": "https://www.lockheedmartinjobs.com/college-students",
+            "industry_tags": ["aerospace"],
+            "reason": "Aerospace seed",
+            "source": "local_curated_seed",
+            "origin": "discovered",
+            "should_add_to_source_registry": True,
+            "review_status": "suggested"
+        },
+        {
+            "name": "Dismissed Co",
+            "website": "https://dismissed.example",
+            "careers_url": "https://dismissed.example/careers",
+            "industry_tags": ["finance"],
+            "reason": "Finance seed",
+            "source": "local_curated_seed",
+            "origin": "discovered",
+            "should_add_to_source_registry": True,
+            "review_status": "suggested"
+        }
+    ]
+    (data_dir / "discovered_companies.json").write_text(json.dumps(suggestions), encoding="utf-8")
+    
+    # 2. Write dismissed companies list
+    (data_dir / "company_dismissals.json").write_text(json.dumps(["Dismissed Co"]), encoding="utf-8")
+    
+    # Write empty files for postings
+    write_filtered_postings_jsonl([], data_dir / "filtered_postings.jsonl")
+    write_scored_postings_jsonl([], data_dir / "scored_postings.jsonl")
+    
+    # Load dashboard
+    dashboard = load_review_dashboard(data_dir, private_dir)
+    
+    # Assert Lockheed Martin is suggested, but Dismissed Co is not
+    sug_companies = dashboard["suggested_companies"]
+    sug_names = {c["name"] for c in sug_companies}
+    assert "Lockheed Martin" in sug_names
+    assert "Dismissed Co" not in sug_names
+    
+    # Verify monitored_companies includes connection_name field
+    monitored = dashboard["monitored_companies"]
+    assert len(monitored) > 0
+    assert "connection_name" in monitored[0]
+

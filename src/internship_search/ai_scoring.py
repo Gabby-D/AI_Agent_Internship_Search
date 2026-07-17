@@ -87,17 +87,20 @@ class GeminiFitScorer:
 
     def __init__(
         self,
+        *,
         api_key: str,
         model: str = DEFAULT_GEMINI_MODEL,
         post_json: PostJson | None = None,
         fallback_scorer: FitScorer | None = None,
         resume_config: ResumeScoringConfig | None = None,
+        private_dir: Path | str = "private",
     ) -> None:
         self.api_key = api_key
         self.model = model
         self.post_json = post_json or post_json_request
         self.fallback_scorer = fallback_scorer or LocalRuleBasedScorer()
         self.resume_config = resume_config or ResumeScoringConfig(enabled=False, summary=None)
+        self.private_dir = Path(private_dir)
         self.usage = AiUsage()
 
     def score_posting(
@@ -115,6 +118,7 @@ class GeminiFitScorer:
                 model=self.model,
                 post_json=self.post_json,
                 resume_summary=self.resume_config.summary if self.resume_config.included else None,
+                private_dir=self.private_dir,
             )
             self.usage = self.usage.add(parsed.usage)
             return parsed
@@ -157,6 +161,7 @@ def get_fit_scorer(
             api_key=api_key,
             model=model,
             resume_config=resume_config,
+            private_dir=private_dir,
         )
     if selected == "gemini" and not api_key:
         raise ValueError("AI_PROVIDER_API_KEY is required when AI_PROVIDER=gemini.")
@@ -171,6 +176,7 @@ def score_posting_with_gemini(
     model: str = DEFAULT_GEMINI_MODEL,
     post_json: PostJson | None = None,
     resume_summary: str | None = None,
+    private_dir: Path | str = "private",
 ) -> ParsedFitScore:
     prompt = build_scoring_prompt(
         posting=posting,
@@ -180,8 +186,40 @@ def score_posting_with_gemini(
             resume_summary=resume_summary,
         ),
     )
+    
+    parts: list[dict[str, object]] = [{"text": prompt}]
+    
+    attachments_dir = Path(private_dir) / "attachments"
+    if attachments_dir.exists():
+        import base64
+        import mimetypes
+        for file_path in sorted(attachments_dir.iterdir()):
+            if file_path.is_file():
+                suffix = file_path.suffix.lower()
+                if suffix in {".txt", ".md"}:
+                    try:
+                        text_content = file_path.read_text(encoding="utf-8")
+                        parts.append({"text": f"\nAttachment ({file_path.name}):\n{text_content}\n"})
+                    except Exception:
+                        pass
+                elif suffix in {".pdf", ".png", ".jpg", ".jpeg", ".gif"}:
+                    try:
+                        mime_type, _ = mimetypes.guess_type(file_path.name)
+                        if not mime_type:
+                            mime_type = "application/octet-stream"
+                        file_bytes = file_path.read_bytes()
+                        b64_data = base64.b64encode(file_bytes).decode("utf-8")
+                        parts.append({
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data": b64_data
+                            }
+                        })
+                    except Exception:
+                        pass
+
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
+        "contents": [{"parts": parts}],
         "generationConfig": {
             "responseMimeType": "application/json",
             "temperature": 0.2,
@@ -231,12 +269,12 @@ def build_scoring_prompt(
         "filter_reasons": posting.reasons,
     }
     instructions = (
-        "Score this internship posting for fit against the student profile.\n"
+        "Score this internship posting for fit against the student profile and any attached reference documents (such as uploaded resumes, transcripts, or notes).\n"
         "Return JSON only with keys: score (0-100 integer), fit_level "
         '("strong", "medium", or "weak"), explanations (string array), gaps (string array).\n'
         "Prefer Summer 2027 internships in finance, operations, analytics, Bay Area, Israel, "
         "or paid roles. Penalize marketing-heavy roles.\n"
-        "Do not invent facts not supported by the posting or profile.\n"
+        "Do not invent facts not supported by the posting, profile, or attachments.\n"
     )
     if profile_context.get("resume_included"):
         instructions += (

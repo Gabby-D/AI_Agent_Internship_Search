@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+import re
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from internship_search.job_collector import read_postings_jsonl
 from internship_search.posting_filter import read_filtered_postings_jsonl
 from internship_search.posting_history import inactive_posting_urls, read_history
 from internship_search.private_inputs import Preferences, load_private_inputs
-from internship_search.source_registry import read_source_registry
+from internship_search.source_registry import read_source_registry, normalize_company_name
 
 
 REVIEW_STATUSES = ("to_review", "applied", "not_interested", "archived")
@@ -43,6 +44,13 @@ class ReviewFilters:
 
 
 @dataclass(frozen=True)
+class SuggestedCompanyOverview:
+    company_name: str
+    reason: str
+    source: str
+
+
+@dataclass(frozen=True)
 class ReviewablePosting:
     title: str
     company: str
@@ -59,6 +67,10 @@ class ReviewablePosting:
     email_status: str
     explanations: list[str]
     gaps: list[str]
+    summary: str = ""
+    highlights: list[str] = field(default_factory=list)
+    notes: str = ""
+    suggested_company_overview: SuggestedCompanyOverview | None = None
 
 
 def load_review_dashboard(
@@ -73,6 +85,7 @@ def load_review_dashboard(
         for posting in read_scored_postings_jsonl(data_path / "scored_postings.jsonl")
     }
     reviews = read_posting_reviews(data_path / "posting_reviews.json")
+    notes_by_url = read_posting_notes(data_path / "posting_notes.json")
     registry_path = data_path / "source_registry.json"
     sources = read_source_registry(registry_path) if registry_path.exists() else []
     connection_by_company = {
@@ -93,6 +106,35 @@ def load_review_dashboard(
         for posting in read_postings_jsonl(data_path / "new_postings.jsonl")
     }
 
+    # Load suggested and dismissed companies
+    dismissed_path = data_path / "company_dismissals.json"
+    dismissed_names = set()
+    if dismissed_path.exists():
+        try:
+            dismissed_names = set(json.loads(dismissed_path.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    dismissed_normalized = {normalize_company_name(name) for name in dismissed_names}
+
+    my_company_names = {normalize_company_name(c.name) for c in private_inputs.companies}
+
+    discovered_path = data_path / "discovered_companies.json"
+    discovered_companies = []
+    if discovered_path.exists():
+        try:
+            discovered_companies = json.loads(discovered_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    suggested_by_company = {}
+    suggested_companies_list = []
+    for item in discovered_companies:
+        name = item.get("name", "")
+        norm_name = normalize_company_name(name)
+        suggested_by_company[norm_name] = item
+        if norm_name not in my_company_names and norm_name not in dismissed_normalized:
+            suggested_companies_list.append(item)
+
     postings: list[ReviewablePosting] = []
     for filtered in read_filtered_postings_jsonl(data_path / "filtered_postings.jsonl"):
         if not filtered.included:
@@ -100,6 +142,15 @@ def load_review_dashboard(
         if not posting_matches_location_policy(filtered.location, filtered.title):
             continue
         scored = scored_by_url.get(filtered.posting_url)
+        norm_company = normalize_company_name(filtered.company)
+        suggested_overview = None
+        if norm_company not in my_company_names and norm_company in suggested_by_company:
+            s_info = suggested_by_company[norm_company]
+            suggested_overview = SuggestedCompanyOverview(
+                company_name=s_info.get("name", filtered.company),
+                reason=s_info.get("reason", ""),
+                source=s_info.get("source", ""),
+            )
         postings.append(
             build_reviewable_posting(
                 filtered=filtered,
@@ -110,6 +161,8 @@ def load_review_dashboard(
                 is_new=filtered.posting_url in new_posting_urls,
                 sent_urls=sent_urls,
                 inactive_urls=inactive_urls,
+                notes=notes_by_url.get(filtered.posting_url, ""),
+                suggested_company_overview=suggested_overview,
             )
         )
 
@@ -131,9 +184,11 @@ def load_review_dashboard(
                 "website": company.website,
                 "careers_url": careers_url_by_company.get(company.name, company.website),
                 "has_connection": company.has_connection,
+                "connection_name": company.connection_name,
             }
             for company in private_inputs.companies
         ],
+        "suggested_companies": suggested_companies_list,
         "industries": private_inputs.industries,
         "status_options": list(REVIEW_STATUSES),
         "filter_options": {
@@ -153,6 +208,108 @@ def load_review_dashboard(
     }
 
 
+def extract_deadline_from_text(text: str) -> str | None:
+    if not text:
+        return None
+    text_lower = text.lower()
+    patterns = [
+        r"(?:deadline|apply by|apply before|before|due date|due|by)[:\s]+([a-zA-Z]+\s+\d+(?:st|nd|rd|th)?|\d{1,2}/\d{1,2}(?:/\d{2,4})?)",
+        r"\b([a-zA-Z]+\s+\d+(?:st|nd|rd|th)?|\d{1,2}/\d{1,2}(?:/\d{2,4})?)\s+deadline\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            return match.group(1).strip().title()
+    return None
+
+
+def build_factual_posting_summary(posting, notes: str = "") -> str:
+    loc_lower = (posting.location or "").lower()
+    title_lower = (posting.title or "").lower()
+    
+    if not posting.location or posting.location.strip() in {"", "Unknown", "unknown"}:
+        location_val = "Unknown"
+        work_arrangement = "Unknown"
+    else:
+        location_val = posting.location
+        if "remote" in loc_lower or "remote" in title_lower:
+            work_arrangement = "Remote"
+        elif "hybrid" in loc_lower or "hybrid" in title_lower:
+            work_arrangement = "Hybrid"
+        elif "on-site" in loc_lower or "onsite" in loc_lower or "on site" in loc_lower:
+            work_arrangement = "On-site"
+        else:
+            work_arrangement = "Unknown"
+
+    program = "Unknown"
+    if posting.title:
+        keywords = [
+            "software engineering", "software engineer", "quantitative research", 
+            "quantitative trading", "data science", "data scientist", 
+            "business operations", "operations analyst", "financial analyst", 
+            "investment banking", "operations", "finance", "engineering", "analyst", "mba", "phd", "undergraduate", "graduate"
+        ]
+        for kw in keywords:
+            if kw in title_lower:
+                program = kw.title()
+                break
+
+    timing = "Unknown"
+    if posting.title:
+        match = re.search(r"\b(summer|fall|spring|winter)?\s*(202\d)\b", title_lower)
+        if match:
+            timing = match.group(0).title()
+
+    # Extract deadline if known/accessible
+    deadline = extract_deadline_from_text(posting.title)
+    if not deadline:
+        deadline = extract_deadline_from_text(notes)
+    if not deadline:
+        deadline = "Unknown"
+
+    lines = [
+        f"Role: {posting.title or 'Unknown'}",
+        f"Company: {posting.company or 'Unknown'}",
+        f"Location: {location_val}",
+        f"Work Arrangement: {work_arrangement}",
+        f"Program or Team: {program}",
+        f"Timing: {timing}",
+        "Responsibilities: Unknown (posting body not stored)",
+        "Qualifications: Unknown (posting body not stored)",
+        f"Application Deadline: {deadline}"
+    ]
+    return "\n".join(lines)
+
+
+def build_factual_posting_highlights(posting) -> list[str]:
+    highlights = []
+    title_lower = (posting.title or "").lower()
+    
+    if not posting.title:
+        highlights.append("Professional internship program opportunity.")
+    elif "software" in title_lower or "engineer" in title_lower or "developer" in title_lower:
+        highlights.append("Technical role focused on software development / engineering.")
+    elif "quantitative" in title_lower or "quant" in title_lower or "trading" in title_lower:
+        highlights.append("Quantitative role involving modeling, analysis, or financial markets.")
+    elif "data" in title_lower or "analyst" in title_lower or "analytics" in title_lower:
+        highlights.append("Data-centric role focused on analysis, reporting, or statistics.")
+    elif "operations" in title_lower or "logistics" in title_lower:
+        highlights.append("Operations-focused role involving logistics, supply chain, or process optimization.")
+    else:
+        highlights.append("Professional internship program opportunity.")
+
+    if posting.location:
+        loc_lower = posting.location.lower()
+        if "remote" in loc_lower:
+            highlights.append("Fully remote work arrangement option.")
+        elif "hybrid" in loc_lower:
+            highlights.append("Hybrid onsite/offsite model.")
+        elif posting.location.strip() not in {"", "Unknown", "unknown"}:
+            highlights.append(f"Located onsite at {posting.location}.")
+        
+    return highlights
+
+
 def build_reviewable_posting(
     *,
     filtered,
@@ -163,6 +320,8 @@ def build_reviewable_posting(
     is_new: bool,
     sent_urls: set[str],
     inactive_urls: set[str],
+    notes: str,
+    suggested_company_overview: SuggestedCompanyOverview | None = None,
 ) -> ReviewablePosting:
     return ReviewablePosting(
         title=filtered.title,
@@ -186,6 +345,10 @@ def build_reviewable_posting(
         ),
         explanations=scored.explanations if scored else [],
         gaps=scored.gaps if scored else (filtered.reasons if not included else []),
+        summary=build_factual_posting_summary(filtered, notes=notes),
+        highlights=build_factual_posting_highlights(filtered),
+        notes=notes,
+        suggested_company_overview=suggested_company_overview,
     )
 
 
@@ -369,19 +532,130 @@ def append_activity_log(
     return path
 
 
+def get_activity_type(action: str) -> str:
+    action = str(action or "").strip()
+    if action == "opportunity_status_updated":
+        return "posting status"
+    elif action == "posting_note_updated":
+        return "note edit"
+    elif action in {"company_list_updated", "company_suggestion_dismissed"}:
+        return "company edit"
+    elif action in {"reference_file_updated", "reference_attachment_uploaded", "reference_attachment_deleted"}:
+        return "file upload"
+    elif action == "collection":
+        return "collection"
+    elif action == "scoring":
+        return "scoring"
+    elif action == "email":
+        return "email"
+    elif action == "preferences_updated":
+        return "company edit"
+    else:
+        return "other"
+
+
 def read_activity_log(
     path: Path | str = "data/activity_log.jsonl",
-    limit: int = 50,
+    limit: int = 1000,
 ) -> list[dict]:
     log_path = Path(path)
     if not log_path.exists():
         return []
-    events = [
-        json.loads(line)
-        for line in log_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    
+    events = []
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+            # Map activity type
+            event["activity_type"] = get_activity_type(event.get("action"))
+            
+            # Extract details
+            details = event.get("details", {})
+            if not isinstance(details, dict):
+                details = {}
+            
+            # Determine api_invoked (top-level preference)
+            if "api_invoked" in event:
+                pass
+            elif "api_invoked" in details:
+                event["api_invoked"] = details["api_invoked"]
+            else:
+                if event.get("action") == "scoring" and details.get("provider") == "gemini":
+                    event["api_invoked"] = True
+                else:
+                    event["api_invoked"] = False
+            
+            # Determine cost (top-level preference)
+            if "cost" in event:
+                pass
+            elif "cost" in details:
+                event["cost"] = details["cost"]
+            else:
+                if event.get("api_invoked") and ("total_tokens" in details or "prompt_tokens" in details):
+                    tokens = details.get("total_tokens", details.get("prompt_tokens", 0) + details.get("output_tokens", 0))
+                    event["cost"] = {
+                        "amount": 0.0,
+                        "currency": "USD",
+                        "basis": f"Gemini API free tier ({tokens} tokens)"
+                    }
+                else:
+                    event["cost"] = {"status": "unavailable"}
+            
+            events.append(event)
+        except Exception:
+            pass
+            
     return list(reversed(events[-limit:]))
+
+
+def read_posting_notes(path: Path | str = "data/posting_notes.json") -> dict[str, str]:
+    """Read local notes keyed by posting URL."""
+
+    notes_path = Path(path)
+    if not notes_path.exists():
+        return {}
+    raw = json.loads(notes_path.read_text(encoding="utf-8"))
+    return {
+        posting_url: str(entry.get("notes", ""))
+        for posting_url, entry in raw.get("notes", {}).items()
+        if isinstance(entry, dict)
+    }
+
+
+def set_posting_note(
+    posting_url: str,
+    notes: str,
+    output_path: Path | str = "data/posting_notes.json",
+) -> str:
+    """Save or clear a local note for one posting."""
+
+    normalized_url = posting_url.strip()
+    if not normalized_url:
+        raise ValueError("posting_url is required")
+    if not isinstance(notes, str):
+        raise ValueError("notes must be a string")
+    normalized_notes = notes.strip()
+    if len(normalized_notes) > 10_000:
+        raise ValueError("notes must be 10,000 characters or fewer")
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    raw = {"notes": {}}
+    if path.exists():
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    entries = raw.setdefault("notes", {})
+    if normalized_notes:
+        entries[normalized_url] = {
+            "notes": normalized_notes,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    else:
+        entries.pop(normalized_url, None)
+
+    path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+    return normalized_notes
 
 
 def read_posting_reviews(path: Path | str) -> dict[str, str]:

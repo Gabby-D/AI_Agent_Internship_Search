@@ -37,5 +37,11 @@ Use this folder for notes about completed work and decisions.
 31. `032-live-workflow-validation.md` - Ran the live workflow, verified location-safe results, and added a Y Combinator location-aware collector.
 32. `033-scheduler-production-validation.md` - Validated Windows task registration, wrapper logs, missed-run settings, and weekly email delivery.
 33. `034-release-readiness-and-version-control.md` - Reviewed the release, ran the full suite, and committed completed local work.
+34. `035-review-ui-redesign.md` - Delivered the tabbed, editable review dashboard and aligned the project documentation.
+35. `036-posting-summaries-and-notes.md` - Added expandable posting summaries, highlights, and local personal notes.
+36. `037-company-lists-connections-and-suggestions.md` - Added company columns, connection contacts, industries panel, and debounced auto-saving.
+37. `038-reference-file-attachments.md` - Added file upload attachments card and multimodal AI scoring.
+38. `039-activity-log-filtering-and-cost-transparency.md` - Added activity log filters, category badges, and API/SMTP cost transparency.
+39. `040-internship-focused-summaries.md` - Refocused expanded summaries on verified role facts and added title/notes deadline extraction.
 
 Task 025 was retired before implementation, so there is no completed-task file for that number.

@@ -16,6 +16,7 @@ class Company:
     name: str
     website: str
     has_connection: bool
+    connection_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -171,16 +172,21 @@ def parse_companies_file(content: str) -> tuple[list[Company], list[str]]:
             cells = _split_markdown_table_row(stripped)
             if _is_table_header_or_separator(cells):
                 continue
-            if len(cells) != 3:
+            if len(cells) not in {3, 4}:
                 raise PrivateInputError(
-                    "Expected companies table rows to have 3 columns: "
-                    "Name, Website, and connection status."
+                    "Expected companies table rows to have 3 or 4 columns: "
+                    "Name, Website, connection status, and optional contact."
                 )
+            has_connection = _parse_yes_no(cells[2])
+            connection_name = ""
+            if len(cells) == 4:
+                connection_name = cells[3].strip()
             companies.append(
                 Company(
                     name=cells[0],
                     website=cells[1],
-                    has_connection=_parse_yes_no(cells[2]),
+                    has_connection=has_connection,
+                    connection_name=connection_name,
                 )
             )
             continue
@@ -304,11 +310,13 @@ def _write_validated_file(
 
 
 def _coerce_company(company: Company | Mapping[str, object]) -> Company:
+    connection_name = ""
     if isinstance(company, Company):
-        name, website, has_connection = (
+        name, website, has_connection, connection_name = (
             company.name,
             company.website,
             company.has_connection,
+            company.connection_name,
         )
     elif isinstance(company, Mapping):
         required_fields = {"name", "website", "has_connection"}
@@ -319,6 +327,7 @@ def _coerce_company(company: Company | Mapping[str, object]) -> Company:
         name = company["name"]
         website = company["website"]
         has_connection = company["has_connection"]
+        connection_name = str(company.get("connection_name", "") or "")
     else:
         raise PrivateInputError("Each company row must be a Company or mapping.")
 
@@ -328,6 +337,7 @@ def _coerce_company(company: Company | Mapping[str, object]) -> Company:
         name=_validate_table_value(name, "Company name"),
         website=_validate_table_value(website, "Company website"),
         has_connection=has_connection,
+        connection_name=connection_name,
     )
 
 
@@ -348,12 +358,13 @@ def _format_companies_file(companies: Sequence[Company], industries: Sequence[st
     lines = [
         "# List of Companies",
         "",
-        "| Name | Website | I know someone in the company |",
-        "|------|---------|-------------------------------|",
+        "| Name | Website | I know someone in the company | Connection Contact |",
+        "|------|---------|-------------------------------|--------------------|",
     ]
     lines.extend(
         f"| {company.name} | {company.website} | "
-        f"{'yes' if company.has_connection else 'no'} |"
+        f"{'yes' if company.has_connection else 'no'} | "
+        f"{company.connection_name or ''} |"
         for company in companies
     )
     lines.extend(["", "## Industries of interest"])

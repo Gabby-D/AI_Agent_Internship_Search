@@ -50,8 +50,8 @@ class CompanyDiscoveryResult:
     search_errors: list[str] | None = None
 
 
-MAX_DISCOVERY_QUERIES = 5
-MAX_RESULTS_PER_QUERY = 5
+MAX_DISCOVERY_QUERIES = 15
+MAX_RESULTS_PER_QUERY = 10
 
 DISCOVERY_BLOCKED_FRAGMENTS = (
     "extern.com",
@@ -230,6 +230,116 @@ CURATED_DISCOVERY_CANDIDATES = [
         should_add_to_source_registry=True,
         review_status="suggested",
     ),
+    DiscoveredCompany(
+        name="Citigroup",
+        website="https://www.citigroup.com",
+        careers_url="https://careers.citigroup.com/students-and-graduates",
+        industry_tags=["finance", "financial related", "operations"],
+        reason="Major global financial institution with structured summer analyst and operations internships.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="Bank of America",
+        website="https://www.bankofamerica.com",
+        careers_url="https://careers.bankofamerica.com/en-us/student-graduates",
+        industry_tags=["finance", "financial related", "operations"],
+        reason="Global financial services firm with extensive internship opportunities in finance, technology, and operations.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="Boeing",
+        website="https://www.boeing.com",
+        careers_url="https://jobs.boeing.com/students",
+        industry_tags=["aerospace", "defense", "defence", "operations"],
+        reason="Aerospace leader offering student internships in engineering, supply chain, and operations.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="BAE Systems",
+        website="https://www.baesystems.com",
+        careers_url="https://jobs.baesystems.com/global/en/students-graduates",
+        industry_tags=["aerospace", "defense", "defence", "geopolitics"],
+        reason="International defense, aerospace, and security company aligned with defense and geopolitical interests.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="Booz Allen Hamilton",
+        website="https://www.boozallen.com",
+        careers_url="https://careers.boozallen.com/students",
+        industry_tags=["defense", "defence", "geopolitics", "consulting"],
+        reason="Defense and intelligence consulting firm highly aligned with defense and geopolitical analysis.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="General Dynamics",
+        website="https://www.gd.com",
+        careers_url="https://www.gd.com/careers",
+        industry_tags=["aerospace", "defense", "defence", "operations"],
+        reason="Aerospace and defense corporation offering structured careers across defense systems and aerospace.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="L3Harris Technologies",
+        website="https://www.l3harris.com",
+        careers_url="https://careers.l3harris.com/students",
+        industry_tags=["aerospace", "defense", "defence", "geopolitics"],
+        reason="Defense contractor specializing in aerospace and technology, supporting defense and geopolitical missions.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="Jane Street",
+        website="https://www.janestreet.com",
+        careers_url="https://www.janestreet.com/join-jane-street/position-finder",
+        industry_tags=["finance", "financial related", "operations"],
+        reason="Quantitative trading firm with top-tier internships in finance, software engineering, and business operations.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="SpaceX",
+        website="https://www.spacex.com",
+        careers_url="https://www.spacex.com/careers",
+        industry_tags=["aerospace", "defense", "defence", "operations"],
+        reason="Aerospace manufacturer and space transport company with competitive internship programs in operations and engineering.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
+    DiscoveredCompany(
+        name="Susquehanna",
+        website="https://www.sig.com",
+        careers_url="https://sig.com/careers/students",
+        industry_tags=["finance", "financial related", "operations"],
+        reason="Quantitative trading firm with top-tier internships in finance, software engineering, and business operations.",
+        source="local_curated_seed",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    ),
 ]
 
 
@@ -285,6 +395,17 @@ def discover_companies(
     use_internet: bool = True,
     search_provider: SearchProvider | None = None,
 ) -> DiscoveryBundle:
+    dismissed_path = Path("data/company_dismissals.json")
+    dismissed_names = set()
+    if dismissed_path.exists():
+        try:
+            dismissed_names = {
+                normalize_company_name(name)
+                for name in json.loads(dismissed_path.read_text(encoding="utf-8"))
+            }
+        except Exception:
+            pass
+
     existing_names = {
         normalize_company_name(company.name)
         for company in private_inputs.companies
@@ -293,6 +414,7 @@ def discover_companies(
         normalize_company_name(source.company)
         for source in existing_sources or []
     )
+    existing_names.update(dismissed_names)
     disliked_terms = {
         term.lower()
         for dislike in private_inputs.preferences.dislikes
@@ -370,11 +492,13 @@ def discover_companies_from_internet(
 
 def build_discovery_queries(private_inputs: PrivateInputs) -> list[str]:
     queries: list[str] = []
-    for industry in private_inputs.industries[:3]:
+    for industry in private_inputs.industries:
         queries.append(f"{normalize_query_term(industry)} companies summer 2027 internship careers")
-    for company in private_inputs.companies[:2]:
+    for company in private_inputs.companies:
+        if company.name.lower() in ("test", "existing", "new co"):
+            continue
         queries.append(f"companies similar to {company.name} summer internship careers")
-    for preference in private_inputs.preferences.likes[:1]:
+    for preference in private_inputs.preferences.likes[:3]:
         queries.append(f"{normalize_query_term(preference)} internship companies careers")
     return dedupe_queries(queries)[:MAX_DISCOVERY_QUERIES]
 

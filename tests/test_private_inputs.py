@@ -139,6 +139,39 @@ def test_replace_companies_round_trips_companies_and_industries(tmp_path):
     assert industries == ["finance", "operations"]
 
 
+def test_replace_companies_supports_connection_names(tmp_path):
+    private_dir = tmp_path / "nested" / "private"
+
+    replace_companies(
+        [
+            Company("Connected Co", "https://connected.example", True, "John Doe"),
+            {
+                "name": "Another Co",
+                "website": "https://another.example",
+                "has_connection": True,
+                "connection_name": "Jane Smith",
+            },
+            {
+                "name": "Independent Co",
+                "website": "https://independent.example",
+                "has_connection": False,
+                "connection_name": "",
+            },
+        ],
+        ["finance", "operations"],
+        private_dir,
+    )
+
+    companies, industries = read_companies(private_dir)
+
+    assert companies == [
+        Company("Connected Co", "https://connected.example", True, "John Doe"),
+        Company("Another Co", "https://another.example", True, "Jane Smith"),
+        Company("Independent Co", "https://independent.example", False, ""),
+    ]
+    assert industries == ["finance", "operations"]
+
+
 def test_replace_preferences_round_trips_likes_and_dislikes(tmp_path):
     private_dir = tmp_path / "private"
 

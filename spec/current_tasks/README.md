@@ -4,7 +4,7 @@ Use this folder for tasks that are actively being designed or implemented.
 
 ## Current Milestone
 
-Validate the completed local workflow with live sources, then confirm that recurring collection and weekly email delivery are production-ready.
+Maintain the completed local internship-search workflow and add new work when needed.
 
 ## Task Order
 
@@ -12,7 +12,7 @@ No active current tasks. The first local collection, filtering, and review miles
 
 ## Current Focus
 
-Start with `spec/future_tasks/032-live-workflow-validation.md` and move it into this folder when work begins. Scheduler production validation and release readiness follow as tasks 033 and 034.
+No task is currently active.
 
 ## Code Style Instructions
 

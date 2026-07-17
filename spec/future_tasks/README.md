@@ -4,11 +4,7 @@ Use this folder for planned work that is not ready to implement yet.
 
 ## Future Roadmap
 
-The core implementation and local integration-readiness tasks are complete. The remaining work focuses on live operational validation and release readiness:
-
-1. Run the full workflow against live sources and evaluate its results.
-2. Register and validate the recurring collection and weekly email tasks.
-3. Complete final testing and version-control review.
+The core implementation, operational validation, and release-readiness tasks are complete. The current roadmap focuses on improving the local review workflow and preserving private user context.
 
 The current company list remains seed input. Discovery, internet search, and job-board providers can continue expanding the registry over time.
 
@@ -16,7 +12,7 @@ The current company list remains seed input. Discovery, internet search, and job
 
 ### High Priority
 
-1. `035-review-ui-redesign.md` - Redesign the local review dashboard with tabbed navigation and a modern, minimal visual style.
+1. None currently listed.
 
 ### Medium Priority
 
@@ -28,11 +24,20 @@ The current company list remains seed input. Discovery, internet search, and job
 
 ## Suggested Order
 
-1. `035-review-ui-redesign.md`
+1. None.
 
 ## Notes
 
 Future tasks should move into `spec/current_tasks/` when they are ready to implement.
+
+## Definition of Done for Every Future Task
+
+Before a future task is considered complete:
+
+1. Review and update every affected README so the documentation remains accurate, clear, and helpful. Check the root README plus the READMEs under `data/`, `private/`, and `spec/` when their documented behavior or task status changes.
+2. Protect personal information before staging or pushing. Keep credentials, profile details, resumes, personal notes, generated reports, and other private data out of git; confirm ignore rules with `git check-ignore` and review the staged diff for sensitive values.
+3. Verify that weekly email delivery still works and remains scheduled. Run the email tests and `config/verify_automation.ps1`, then confirm the `AI Agent Internship Weekly Email` task is registered, enabled, and has a future run time. Do not send a live test email unless the task specifically calls for one.
+4. Run the relevant tests, commit the completed work, and push the branch to the configured git remote.
 
 ## Code Style Instructions
 

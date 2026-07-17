@@ -108,6 +108,21 @@ def run_scheduled_collection(
                 target_year=target_year,
             )
             detail = f"Collected {len(collection_result.postings)} posting candidates."
+            try:
+                from internship_search.review_state import append_activity_log
+                append_activity_log(
+                    action="collection",
+                    subject="internship postings",
+                    details={
+                        "postings_collected": len(collection_result.postings),
+                        "source_errors": len(collection_result.errors),
+                        "api_invoked": False,
+                        "cost": {"status": "unavailable"}
+                    },
+                    output_path=data_path / "activity_log.jsonl"
+                )
+            except Exception:
+                pass
             if collection_result.errors:
                 detail += f" {len(collection_result.errors)} source errors."
                 errors.extend(
@@ -209,6 +224,35 @@ def run_scheduled_collection(
                 f"Scored {len(score_result.scored_postings)} postings "
                 f"with {score_result.provider}."
             )
+            try:
+                from internship_search.review_state import append_activity_log
+                is_gemini = (score_result.provider == "gemini")
+                cost_info = {}
+                if is_gemini and score_result.usage:
+                    cost_info = {
+                        "amount": 0.0,
+                        "currency": "USD",
+                        "basis": f"Gemini API free tier ({score_result.usage.total_tokens} tokens)"
+                    }
+                else:
+                    cost_info = {
+                        "status": "unavailable"
+                    }
+                append_activity_log(
+                    action="scoring",
+                    subject="internship scoring",
+                    details={
+                        "scored_postings": len(score_result.scored_postings),
+                        "provider": score_result.provider,
+                        "api_invoked": is_gemini,
+                        "prompt_tokens": score_result.usage.prompt_tokens if (is_gemini and score_result.usage) else 0,
+                        "output_tokens": score_result.usage.output_tokens if (is_gemini and score_result.usage) else 0,
+                        "cost": cost_info
+                    },
+                    output_path=data_path / "activity_log.jsonl"
+                )
+            except Exception:
+                pass
             if score_result.ai_fallback_count:
                 detail += f" {score_result.ai_fallback_count} postings used local fallback."
             steps.append(
@@ -239,6 +283,26 @@ def run_scheduled_collection(
             detail = f"Selected {len(email_result.selected_postings)} postings for email."
             if email_result.email_sent:
                 detail += " Email sent."
+            try:
+                from internship_search.review_state import append_activity_log
+                append_activity_log(
+                    action="email",
+                    subject="weekly summary email",
+                    details={
+                        "recipient": email_result.recipient if hasattr(email_result, 'recipient') else "user",
+                        "sent": email_result.email_sent,
+                        "api_invoked": email_result.email_sent,
+                        "cost": {
+                            "amount": 0.0 if email_result.email_sent else None,
+                            "currency": "USD" if email_result.email_sent else None,
+                            "basis": "Gmail SMTP (free tier)" if email_result.email_sent else None,
+                            "status": "unavailable" if not email_result.email_sent else None
+                        }
+                    },
+                    output_path=data_path / "activity_log.jsonl"
+                )
+            except Exception:
+                pass
             steps.append(
                 WorkflowStepResult(
                     "email",

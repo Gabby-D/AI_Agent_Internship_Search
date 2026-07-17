@@ -240,3 +240,40 @@ def test_post_json_request_retries_transient_http_errors(monkeypatch):
 
     assert attempts["count"] == 2
     assert parsed.score == 82
+
+
+def test_score_posting_with_gemini_attachments(tmp_path):
+    import base64
+    attachments_dir = tmp_path / "attachments"
+    attachments_dir.mkdir()
+    
+    # Write one text file
+    (attachments_dir / "skills.txt").write_text("Python, Pytest", encoding="utf-8")
+    # Write one dummy PDF
+    (attachments_dir / "resume.pdf").write_bytes(b"pdf data")
+    
+    posted_payload = []
+    def mock_post(url: str, body: bytes) -> str:
+        posted_payload.append(json.loads(body.decode("utf-8")))
+        return SAMPLE_GEMINI_RESPONSE
+        
+    parsed = score_posting_with_gemini(
+        posting=make_posting(),
+        private_inputs=make_private_inputs(),
+        has_connection=True,
+        api_key="test-key",
+        post_json=mock_post,
+        private_dir=tmp_path
+    )
+    
+    assert parsed.score == 82
+    assert len(posted_payload) == 1
+    parts = posted_payload[0]["contents"][0]["parts"]
+    
+    # Check that text and inline data parts exist
+    assert any("Attachment (skills.txt)" in p.get("text", "") for p in parts)
+    
+    inline_parts = [p for p in parts if "inline_data" in p]
+    assert len(inline_parts) == 1
+    assert inline_parts[0]["inline_data"]["mime_type"] == "application/pdf"
+    assert inline_parts[0]["inline_data"]["data"] == base64.b64encode(b"pdf data").decode("utf-8")

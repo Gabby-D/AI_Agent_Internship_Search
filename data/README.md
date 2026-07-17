@@ -8,6 +8,7 @@ Current generated files:
 
 - `source_registry.json` contains local company career-source metadata built from seed companies.
 - `discovered_companies.json` contains reviewable similar-company suggestions.
+- `company_dismissals.json` contains dismissed company recommendations to prevent them from reappearing in UI suggestions.
 - `discovered_companies.md` contains a readable review report for suggested companies.
 - `internet_search_results.jsonl` contains structured careers-page search results.
 - `job_board_postings.jsonl` contains posting candidates found through public job-board search results.
@@ -26,5 +27,6 @@ Current generated files:
 - `scheduled_collection_runs.jsonl` contains append-only run logs for manual or scheduled workflow runs.
 - `scheduled_run_output/` contains console logs from the scheduled-collection and weekly-email wrapper scripts.
 - `posting_reviews.json` contains posting review status: to review, applied, not interested, or archived.
+- `posting_notes.json` contains local personal notes keyed by posting URL.
 - `activity_log.jsonl` contains dated, append-only local UI activity records.
 - `ui_preferences.json` is a legacy local preferences cache; the review UI edits `private/preferences.md`.

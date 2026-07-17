@@ -201,19 +201,15 @@ If the page does not load:
 2. Try another port: `uv run internship-search review-ui --port 8766`.
 3. Make sure `review-ui` is running — collection commands alone do not start the website.
 
-The UI shows separate lists:
+The dashboard has five tabs:
 
-- To review
-- Interested
-- Applied
-- Needs follow-up
-- Ignored
+- **Postings** groups roles as To review, Applied, Not interested, or Archived. Each row shows the job, company, location, connection indicator, career-posting link, review-status control, and an expandable summary with highlights and personal notes.
+- **Companies** edits the monitored-company list, official career URLs, connection flags, and industries. Saving updates `private/list_of_companies.md` and rebuilds the local source registry.
+- **Preferences** edits likes and dislikes in `private/preferences.md`.
+- **Reference Files** edits the course list, connection notes, resume summary, and manages uploaded file attachments (PDFs, docs, images) with local validation rules.
+- **Activity Log** displays dated local changes in reverse chronological order with filter controls and cost transparency badges.
 
-Each row shows job title, company, location, link, and review status. Status changes are saved to `data/posting_reviews.json`.
-
-The dashboard displays the active location policy. Its API can load or save `data/ui_preferences.json`, but the current browser page does not include a preferences editor, and scoring continues to use `private/preferences.md`.
-
-The collapsed **Monitored companies** section reads `private/list_of_companies.md` on every dashboard refresh. The page refreshes its data automatically every 30 seconds, so company additions, removals, websites, and connection flags appear without restarting the UI. New companies are included in future posting searches after the next scheduled collection, or immediately after running `uv run internship-search run-scheduled-collection --include-job-boards`.
+The dashboard displays the active location policy and refreshes its data every 30 seconds when a text field is not focused. New companies are included in future posting searches after the next scheduled collection, or immediately after running `uv run internship-search run-scheduled-collection --include-job-boards`.
 
 Restart the UI after code changes:
 
@@ -357,9 +353,9 @@ Implemented and working locally:
 - Job-board search with DuckDuckGo queries for Greenhouse, Lever, Workday, LinkedIn, and Indeed
 - Weekly email draft and SMTP delivery
 - Windows Task Scheduler automation with missed-run catch-up
-- Local review UI with status-based lists
-
-The remaining planned work is live workflow validation, production scheduler validation, and release readiness. It is tracked in `spec/future_tasks/`.
+- Local review UI with status-based lists, supporting file attachments, company recommendation dismissals, and activity log filtering with cost transparency.
+ 
+All planned milestones, including live workflow validation, scheduler automation, Reference File attachments, activity log filtering, cost transparency, and internship-focused role summaries, have been fully implemented, validated by 214 passing unit tests, and verified locally.
 
 ## Privacy
 

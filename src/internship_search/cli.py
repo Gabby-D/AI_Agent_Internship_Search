@@ -543,6 +543,17 @@ def main(argv: list[str] | None = None) -> int:
             target_year=args.target_year,
         )
         print(summarize_collection(result))
+        from internship_search.review_state import append_activity_log
+        append_activity_log(
+            action="collection",
+            subject="internship postings",
+            details={
+                "postings_collected": len(result.postings),
+                "source_errors": len(result.errors),
+                "api_invoked": False,
+                "cost": {"status": "unavailable"}
+            }
+        )
         return 0
 
     if args.command == "search-job-boards":
@@ -610,6 +621,33 @@ def main(argv: list[str] | None = None) -> int:
             resume_aware=args.resume_aware or None,
         )
         print(summarize_score_result(result))
+        
+        from internship_search.review_state import append_activity_log
+        is_gemini = (result.provider == "gemini")
+        cost_info = {}
+        if is_gemini and result.usage:
+            cost_info = {
+                "amount": 0.0,
+                "currency": "USD",
+                "basis": f"Gemini API free tier ({result.usage.total_tokens} tokens)"
+            }
+        else:
+            cost_info = {
+                "status": "unavailable"
+            }
+            
+        append_activity_log(
+            action="scoring",
+            subject="internship scoring",
+            details={
+                "scored_postings": len(result.scored_postings),
+                "provider": result.provider,
+                "api_invoked": is_gemini,
+                "prompt_tokens": result.usage.prompt_tokens if (is_gemini and result.usage) else 0,
+                "output_tokens": result.usage.output_tokens if (is_gemini and result.usage) else 0,
+                "cost": cost_info
+            }
+        )
         return 0
 
     if args.command == "detect-new-postings":
@@ -643,6 +681,23 @@ def main(argv: list[str] | None = None) -> int:
             send=args.send,
         )
         print(summarize_email_summary(result))
+        
+        from internship_search.review_state import append_activity_log
+        append_activity_log(
+            action="email",
+            subject="weekly summary email",
+            details={
+                "recipient": args.recipient,
+                "sent": result.email_sent,
+                "api_invoked": result.email_sent,
+                "cost": {
+                    "amount": 0.0 if result.email_sent else None,
+                    "currency": "USD" if result.email_sent else None,
+                    "basis": "Gmail SMTP (free tier)" if result.email_sent else None,
+                    "status": "unavailable" if not result.email_sent else None
+                }
+            }
+        )
         if args.send and not result.email_sent:
             return 1
         return 0
