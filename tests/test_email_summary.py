@@ -81,12 +81,12 @@ def test_render_weekly_email_summary_groups_roles_and_highlights_connection():
         new_posting_urls={"https://example.com/jobs/1"},
         sources=[make_source()],
         subject="Weekly internship summary: 1 postings to review",
-        recipient="gabrielle.dar@gmail.com",
+        recipient="recipient@example.com",
         send_status="Draft only",
     )
 
     assert "# Weekly Internship Email Summary" in content
-    assert "Recipient: gabrielle.dar@gmail.com" in content
+    assert "Recipient: recipient@example.com" in content
     assert "### Connected Co (connection available)" in content
     assert "#### Strong Fit" in content
     assert "Deadline: Not available" in content

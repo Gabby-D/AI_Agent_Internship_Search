@@ -128,7 +128,7 @@ def test_generate_weekly_email_summary_file_updates_sent_history_only_after_send
 
     monkeypatch.setattr(
         "internship_search.email_summary.deliver_email",
-        lambda **kwargs: EmailDeliveryResult(sent=True, recipient="gabrielle.dar@gmail.com"),
+        lambda **kwargs: EmailDeliveryResult(sent=True, recipient="recipient@example.com"),
     )
 
     summary = generate_weekly_email_summary_file(

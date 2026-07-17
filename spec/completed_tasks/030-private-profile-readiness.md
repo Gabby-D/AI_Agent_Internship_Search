@@ -2,7 +2,7 @@
 
 ## Completed outcome
 
-Validated the local private-input files used by the internship-search workflow. The configured preferences now explicitly state that roles must be located in the Bay Area, Israel, or be online/remote.
+Validated the local private-input files used by the internship-search workflow. Specific profile and location preferences remain in ignored private files.
 
 ## Verification
 

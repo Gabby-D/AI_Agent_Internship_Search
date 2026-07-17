@@ -8,9 +8,10 @@ The application loads these filenames:
 
 - `list_of_companies.md` (required) for target companies, websites, connection flags, optional connection names, and industries of interest.
 - `preferences.md` (required) for liked and disliked role characteristics, including location preferences.
-- `mcgill_class_list.md` (required) for program and coursework information.
+- `location_preferences.txt` (optional) for private location aliases, one per line. Fully remote roles remain eligible without this file.
+- `course_list.md` (required) for program and coursework information.
 - `connections.md` (optional) for connection notes.
-- A legacy project-specific PDF resume filename (optional) for presence-only detection by the private-input loader.
+- `resume.pdf` (optional) for presence-only detection by the private-input loader.
 - `resume_summary.md` (optional and recommended) for resume-aware Gemini scoring. The scorer also accepts `resume.md` or `resume.txt`.
 - `attachments/` (optional) for supporting documents managed by the Review UI. Uploads accept PDF, Word (`.doc`, `.docx`), text (`.txt`, `.md`), and image files (`.png`, `.jpg`, `.jpeg`, `.gif`) up to 5 MB each.
 
@@ -20,6 +21,6 @@ The standalone legacy resume PDF is only checked for existence and is not parsed
 
 - `list_of_companies.md` uses a 3 or 4-column Markdown table: company name, official career or jobs-page URL, `yes`/`no` connection status, and optional connection contact names. List items outside the table are treated as industries.
 - `preferences.md` uses `## Things I like` and `## Things I don't like` sections with list items.
-- `mcgill_class_list.md` uses a `## Program` section and course sections whose list items follow `COURSE CODE: Course title`.
+- `course_list.md` uses a `## Program` section and course sections whose list items follow `COURSE CODE: Course title`.
 
 Everything in this directory is ignored by git except this README and `.gitkeep`. Confirm with `git check-ignore private/<filename>` before staging changes.

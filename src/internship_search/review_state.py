@@ -201,7 +201,7 @@ def load_review_dashboard(
         },
         "summary": build_review_summary(filtered_postings),
         "location_policy": (
-            "Showing Bay Area, Israel, and fully remote internships only. "
+            "Showing roles that match the user's preference of location, plus fully remote roles. "
             "If nothing appears below, no matching roles are available right now."
         ),
         "active_filters": asdict(filters or ReviewFilters()),

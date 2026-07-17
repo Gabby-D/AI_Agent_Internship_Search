@@ -51,8 +51,8 @@ def test_parse_companies_file_rejects_invalid_connection_value():
 def test_parse_preferences_file_reads_likes_and_dislikes():
     content = """# Preferences
 ## Things I like
-1. Bay Area or Israel
-2. Paid position
+1. Preferred location
+2. Preferred work arrangement
 
 ## Things I don't like
 1. social media managing
@@ -61,7 +61,7 @@ def test_parse_preferences_file_reads_likes_and_dislikes():
 
     preferences = parse_preferences_file(content)
 
-    assert preferences.likes == ["Bay Area or Israel", "Paid position"]
+    assert preferences.likes == ["Preferred location", "Preferred work arrangement"]
     assert preferences.dislikes == ["social media managing", "marketing"]
 
 
@@ -87,8 +87,8 @@ def test_load_private_inputs_allows_empty_optional_connections(tmp_path):
 """,
         encoding="utf-8",
     )
-    (private_dir / "mcgill_class_list.md").write_text(
-        """# McGill Course List
+    (private_dir / "course_list.md").write_text(
+        """# Course List
 
 ## Program
 
@@ -176,18 +176,18 @@ def test_replace_preferences_round_trips_likes_and_dislikes(tmp_path):
     private_dir = tmp_path / "private"
 
     replace_preferences(
-        ["Paid position", "Remote work"],
+        ["Preferred role type", "Preferred work arrangement"],
         ["Marketing"],
         private_dir,
     )
 
-    assert read_preferences(private_dir).likes == ["Paid position", "Remote work"]
+    assert read_preferences(private_dir).likes == ["Preferred role type", "Preferred work arrangement"]
     assert read_preferences(private_dir).dislikes == ["Marketing"]
 
 
 def test_editable_text_round_trips_raw_files_and_validates_courses(tmp_path):
     private_dir = tmp_path / "private"
-    course_content = """# McGill Course List
+    course_content = """# Course List
 
 ## Program
 - **Major:** Mathematics
@@ -196,11 +196,11 @@ def test_editable_text_round_trips_raw_files_and_validates_courses(tmp_path):
 - **MATH 323:** Probability
 """
 
-    write_editable_text("mcgill_class_list.md", course_content, private_dir)
+    write_editable_text("course_list.md", course_content, private_dir)
     write_editable_text("connections.md", "Met a recruiter.", private_dir)
     write_editable_text("resume_summary.md", "Data-focused student.", private_dir)
 
-    assert read_editable_text("mcgill_class_list.md", private_dir) == course_content
+    assert read_editable_text("course_list.md", private_dir) == course_content
     assert read_editable_text("connections.md", private_dir) == "Met a recruiter."
     assert read_editable_text("resume_summary.md", private_dir) == "Data-focused student."
 
@@ -210,7 +210,7 @@ def test_invalid_writer_content_does_not_mutate_existing_files(tmp_path):
     private_dir.mkdir()
     companies_path = private_dir / "list_of_companies.md"
     preferences_path = private_dir / "preferences.md"
-    courses_path = private_dir / "mcgill_class_list.md"
+    courses_path = private_dir / "course_list.md"
     companies_path.write_text(
         "| Name | Website | I know someone in the company |\n"
         "|------|---------|-------------------------------|\n"
@@ -234,7 +234,7 @@ def test_invalid_writer_content_does_not_mutate_existing_files(tmp_path):
     for writer, args in (
         (replace_companies, ([], [], private_dir)),
         (replace_preferences, ([], [], private_dir)),
-        (write_editable_text, ("mcgill_class_list.md", "# Courses\n", private_dir)),
+        (write_editable_text, ("course_list.md", "# Courses\n", private_dir)),
     ):
         try:
             writer(*args)

@@ -272,8 +272,7 @@ def build_scoring_prompt(
         "Score this internship posting for fit against the student profile and any attached reference documents (such as uploaded resumes, transcripts, or notes).\n"
         "Return JSON only with keys: score (0-100 integer), fit_level "
         '("strong", "medium", or "weak"), explanations (string array), gaps (string array).\n'
-        "Prefer Summer 2027 internships in finance, operations, analytics, Bay Area, Israel, "
-        "or paid roles. Penalize marketing-heavy roles.\n"
+        "Apply the user's private profile preferences and industries without adding assumptions.\n"
         "Do not invent facts not supported by the posting, profile, or attachments.\n"
     )
     if profile_context.get("resume_included"):

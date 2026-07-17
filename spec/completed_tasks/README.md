@@ -32,7 +32,7 @@ Use this folder for notes about completed work and decisions.
 26. `027-posting-metadata-enrichment.md` - Enriched posting company names and locations from parsers and public ATS APIs.
 27. `028-improved-linkedin-indeed-search.md` - Improved LinkedIn and Indeed search, deduplication, and provider limitation reporting.
 28. `029-adzuna-job-board-configuration.md` - Added then removed Adzuna; job-board discovery now uses public search-provider site queries.
-29. `030-private-profile-readiness.md` - Validated local private inputs and recorded the Bay Area, Israel, and online/remote location preference.
+29. `030-private-profile-readiness.md` - Validated local private inputs while keeping specific profile and location preferences private.
 30. `031-environment-integration-readiness.md` - Validated Gemini scoring fallback and SMTP configuration, then sent a controlled test email.
 31. `032-live-workflow-validation.md` - Ran the live workflow, verified location-safe results, and added a Y Combinator location-aware collector.
 32. `033-scheduler-production-validation.md` - Validated Windows task registration, wrapper logs, missed-run settings, and weekly email delivery.

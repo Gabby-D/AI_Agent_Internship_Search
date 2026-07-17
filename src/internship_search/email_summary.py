@@ -31,7 +31,7 @@ class EmailSummary:
     delivery_result: EmailDeliveryResult | None = None
 
 
-DEFAULT_RECIPIENT = "gabrielle.dar@gmail.com"
+DEFAULT_RECIPIENT = ""
 
 
 def generate_weekly_email_summary_file(

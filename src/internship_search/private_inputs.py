@@ -53,7 +53,7 @@ class PrivateInputs:
 _COMPANIES_FILENAME = "list_of_companies.md"
 _PREFERENCES_FILENAME = "preferences.md"
 _EDITABLE_TEXT_FILENAMES = frozenset(
-    {"mcgill_class_list.md", "connections.md", "resume_summary.md"}
+    {"course_list.md", "connections.md", "resume_summary.md"}
 )
 
 
@@ -68,10 +68,10 @@ def load_private_inputs(private_dir: Path | str = "private") -> PrivateInputs:
         _read_required_file(private_path / "preferences.md")
     )
     program, courses = parse_course_file(
-        _read_required_file(private_path / "mcgill_class_list.md")
+        _read_required_file(private_path / "course_list.md")
     )
     connections_notes = _read_optional_file(private_path / "connections.md").strip()
-    resume_path = private_path / "Resume - Gabrielle Dar.pdf"
+    resume_path = private_path / "resume.pdf"
 
     return PrivateInputs(
         companies=companies,
@@ -157,7 +157,7 @@ def write_editable_text(
         raise PrivateInputError("Editable text content must be a string.")
 
     path = _editable_text_path(filename, private_dir)
-    validator = parse_course_file if filename == "mcgill_class_list.md" else None
+    validator = parse_course_file if filename == "course_list.md" else None
     _write_validated_file(path, content, validator)
 
 
@@ -238,7 +238,7 @@ def parse_course_file(content: str) -> tuple[ProgramInfo, list[Course]]:
             courses.append(Course(code=code.strip(), title=title.strip(), category=category))
 
     if not courses:
-        raise PrivateInputError("No courses found in private/mcgill_class_list.md.")
+        raise PrivateInputError("No courses found in private/course_list.md.")
 
     return program, courses
 

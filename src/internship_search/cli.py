@@ -299,8 +299,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     weekly_email.add_argument(
         "--recipient",
-        default="gabrielle.dar@gmail.com",
-        help="Optional email recipient for the draft metadata.",
+        default=None,
+        help="Optional email recipient. Defaults to EMAIL_TO from the private .env file.",
     )
     weekly_email.add_argument(
         "--send",

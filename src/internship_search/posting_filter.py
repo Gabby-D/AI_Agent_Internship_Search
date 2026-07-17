@@ -39,27 +39,6 @@ TARGET_YEAR_TERMS = {
     "summer 2027",
 }
 
-PREFERRED_TERMS = {
-    "analytics",
-    "analyst",
-    "aerospace",
-    "bay area",
-    "defense",
-    "defence",
-    "finance",
-    "financial",
-    "geopolitics",
-    "israel",
-    "operations",
-    "remote",
-}
-
-DISLIKE_TERMS = {
-    "marketing",
-    "social media",
-}
-
-
 @dataclass(frozen=True)
 class FilteredPosting:
     title: str
@@ -147,11 +126,6 @@ def evaluate_posting(posting: JobPosting) -> FilteredPosting:
     searchable = build_searchable_text(posting)
     reasons: list[str] = []
 
-    disliked_matches = sorted(term for term in DISLIKE_TERMS if term in searchable)
-    if disliked_matches:
-        reasons.append(f"Excluded because it matched disliked terms: {', '.join(disliked_matches)}.")
-        return to_filtered_posting(posting=posting, included=False, reasons=reasons)
-
     classification = classify_internship_listing(posting.title, posting.posting_url)
 
     if classification.is_specific:
@@ -162,12 +136,9 @@ def evaluate_posting(posting: JobPosting) -> FilteredPosting:
         if not matches_allowed_location(posting.location, posting.title):
             reasons.append(LOCATION_FILTER_REASON)
             return to_filtered_posting(posting=posting, included=False, reasons=reasons)
-        preferred_matches = sorted(term for term in PREFERRED_TERMS if term in searchable)
         target_year_matches = sorted(term for term in TARGET_YEAR_TERMS if term in searchable)
         if target_year_matches:
             reasons.append(f"Mentions target year terms: {', '.join(target_year_matches)}.")
-        if preferred_matches:
-            reasons.append(f"Matches preferred terms: {', '.join(preferred_matches)}.")
         return to_filtered_posting(posting=posting, included=True, reasons=reasons)
 
     reasons.append(

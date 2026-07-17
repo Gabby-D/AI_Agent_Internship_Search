@@ -41,7 +41,7 @@ uv run internship-search collect
 
 ## Notes
 
-This is a first-pass collector. Some records are still broad posting candidates rather than confirmed Summer 2027 internships. The next task should filter and explain relevance.
+This is a first-pass collector. Some records are still broad posting candidates rather than confirmed target-cycle internships. The next task should filter and explain relevance.
 
 ## Verification
 

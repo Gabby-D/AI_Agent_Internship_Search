@@ -1,6 +1,6 @@
 # AI Agent Internship Search
 
-A Python-based tool to help find open Summer 2027 internships that match your interests, availability, resume, skills, coursework, projects, and experience.
+A Python-based tool to help users find internships that match their private preferences and profile.
 
 ## Goal
 
@@ -25,9 +25,10 @@ Create local files under `private/` (not committed to git):
 
 - `list_of_companies.md` — required seed companies to monitor
 - `preferences.md` — required likes, dislikes, and location preferences
-- `mcgill_class_list.md` — required coursework and program info
+- `course_list.md` — required coursework and program info
 - `connections.md` — optional connection notes
-- The legacy project-specific PDF resume filename — optional presence-only resume reference; this standalone PDF is not parsed
+- `location_preferences.txt` — optional private location aliases, one per line
+- `resume.pdf` — optional presence-only resume reference; this standalone PDF is not parsed
 - `resume_summary.md` — optional resume text used only for explicitly enabled resume-aware Gemini scoring; `resume.md` and `resume.txt` are also accepted
 - `attachments/` — optional supporting files managed from the Review UI; see the privacy note below before using Gemini scoring
 
@@ -80,7 +81,7 @@ The main repeatable pipeline:
 1. Build source registry from seed companies
 2. Collect posting candidates
 3. Detect new, seen, changed, and missing postings
-4. Filter for likely Summer 2027 internship relevance and the location policy
+4. Filter for likely target-cycle internship relevance and the private location policy
 5. Generate a Markdown review report
 6. Score filtered postings with Gemini or local rules
 7. Generate a weekly email summary draft
@@ -105,7 +106,7 @@ uv run internship-search run-scheduled-collection --include-job-boards
 
 ## Location Policy
 
-The pipeline keeps only roles in the Bay Area, Israel, or roles that are clearly fully remote or online. Other locations, unknown locations, and non-preferred hybrid locations are excluded during filtering and omitted from scoring, weekly email, and the review dashboard.
+The pipeline keeps roles that match the user's preference of location or are clearly fully remote or online. Specific location preferences are stored only in the ignored `private/location_preferences.txt` file. Other and unknown locations are excluded during filtering and omitted from scoring, weekly email, and the review dashboard.
 
 An empty dashboard can therefore mean that no current roles match the location policy.
 
@@ -232,7 +233,7 @@ Send by SMTP when email credentials are configured:
 uv run internship-search weekly-email-summary --send
 ```
 
-The summary uses `data/email_sent_history.json` to avoid repeating internships already sent successfully. Recipient selection is: explicit `--recipient`, then `EMAIL_TO`, then the program's legacy fallback. Set `EMAIL_TO` explicitly for normal use.
+The summary uses `data/email_sent_history.json` to avoid repeating internships already sent successfully. Recipient selection is: explicit `--recipient`, then `EMAIL_TO` from the ignored `.env` file. Sending fails safely when no recipient is configured.
 
 ## Scheduled Automation
 
@@ -286,7 +287,7 @@ After setup, confirm automation is working:
 | Task Scheduler shows non-zero last result | Open the newest file in `data/scheduled_run_output/`. Collection runs with source warnings may still finish with `Status: partial` and exit code `0` when scoring and email steps succeed. |
 | `email_sent_history.json` unchanged after send | Send did not succeed. Fix SMTP credentials and retry; history updates only after delivery succeeds. |
 | No new postings in email | All current postings may already appear in `email_sent_history.json`. Run a fresh `run-scheduled-collection` first. |
-| Job board search returns 0 postings | DuckDuckGo coverage depends on public search indexes. Try `search-job-boards --query "summer 2027 internship"`. Non-internship roles are filtered out. |
+| Job board search returns 0 postings | DuckDuckGo coverage depends on public search indexes. Try a custom `search-job-boards --query` using the user's desired internship cycle. Non-internship roles are filtered out. |
 | Review UI link does not load | Run `uv run internship-search review-ui` in a separate terminal and keep it open. The site is not running during collection commands. |
 | Collection task never runs | Re-register tasks: `config/register_scheduled_tasks.ps1`. Tasks use `StartWhenAvailable` to catch up after the computer was off. |
 
@@ -353,7 +354,7 @@ Implemented and working locally:
 - Private input loading, source registry, collection, filtering, and reporting
 - Gemini fit scoring with local fallback and optional resume-aware scoring
 - Posting history with duplicate and closed-role detection
-- Deterministic Bay Area, Israel, and remote/online location filtering across filtering, scoring, email, and review
+- Deterministic filtering based on the user's private preference of location, plus remote/online roles
 - Job-board search with DuckDuckGo queries for Greenhouse, Lever, Workday, LinkedIn, and Indeed
 - Weekly email draft and SMTP delivery
 - Windows Task Scheduler automation with missed-run catch-up
@@ -369,6 +370,6 @@ Do not commit:
 - Real files in `private/`
 - Generated files in `data/`
 
-Set `EMAIL_TO` in `.env` before sending so delivery does not use the project's fallback recipient.
+Set `EMAIL_TO` in `.env` before sending. No personal recipient is stored in tracked code.
 
 The project keeps `private/` and generated `data/` files out of git by default. Gemini scoring is an explicit external-data boundary: when Gemini is selected, supported files in `private/attachments/` are sent with each scoring request even if resume-aware summary scoring is disabled. Text (`.txt`, `.md`), PDF, and image (`.png`, `.jpg`, `.jpeg`, `.gif`) attachments are sent; uploaded Word files are stored locally but are not currently included in scoring. Review attachment contents before running Gemini scoring, or use `AI_PROVIDER=local` to keep scoring local.

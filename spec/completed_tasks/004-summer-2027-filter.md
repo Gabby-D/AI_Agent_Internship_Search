@@ -1,8 +1,8 @@
-# Completed Task: Filter Summer 2027 Internship Postings
+# Completed Task: Filter Target-Cycle Internship Postings
 
 ## Completed Outcome
 
-Implemented a modular deterministic filter that reads first-pass posting candidates, evaluates them against Summer 2027 internship relevance rules, and writes both included and excluded results with reasons.
+Implemented a modular deterministic filter that reads first-pass posting candidates, evaluates them against target-cycle internship relevance rules, and writes both included and excluded results with reasons.
 
 ## Implemented Files
 
@@ -20,7 +20,7 @@ These files are generated locally and ignored by git through the existing `data/
 ## Behavior
 
 - Includes postings that clearly mention internship-related terms.
-- Prefers Summer 2027 and early-career terms when available.
+- Prefers the configured target cycle and early-career terms when available.
 - Excludes postings that match disliked terms, including marketing and social media.
 - Records reasons for both included and excluded postings.
 - Keeps filtering rules in one module so they are easy to update.

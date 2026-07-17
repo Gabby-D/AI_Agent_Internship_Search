@@ -39,17 +39,6 @@ class ScoreResult:
     ai_fallback_count: int = 0
 
 
-PROFILE_TERMS = {
-    "analytics": {"analytics", "analysis", "data", "statistics", "decision"},
-    "finance": {"finance", "financial", "accounting", "economics", "analyst"},
-    "operations": {"operations", "logistics", "supply", "optimization"},
-    "math": {"math", "probability", "calculus", "linear algebra", "statistics"},
-    "programming": {"programming", "data", "technology"},
-    "geopolitics": {"geopolitics", "international", "politics"},
-}
-
-DISLIKED_TERMS = {"marketing", "social media"}
-PREFERRED_LOCATION_TERMS = {"bay area", "israel", "remote"}
 PREFERENCE_STOPWORDS = {
     "and",
     "can",
@@ -172,15 +161,6 @@ def score_posting(
     else:
         gaps.append("Does not explicitly mention Summer 2027.")
 
-    matched_profile_themes = match_profile_themes(text)
-    if matched_profile_themes:
-        score += min(20, 5 * len(matched_profile_themes))
-        explanations.append(
-            "Matches profile themes: " + ", ".join(sorted(matched_profile_themes)) + "."
-        )
-    else:
-        gaps.append("No clear match to coursework themes from the current posting text.")
-
     matched_preferences = match_preferences(text, private_inputs)
     if matched_preferences:
         score += min(15, 3 * len(matched_preferences))
@@ -192,7 +172,7 @@ def score_posting(
         score += 10
         explanations.append("Company has a known connection.")
 
-    disliked_matches = sorted(term for term in DISLIKED_TERMS if term in text)
+    disliked_matches = match_dislikes(text, private_inputs)
     if disliked_matches:
         score -= 35
         explanations.append("Penalized disliked terms: " + ", ".join(disliked_matches) + ".")
@@ -280,14 +260,6 @@ def searchable_text(posting: FilteredPosting) -> str:
     ).lower()
 
 
-def match_profile_themes(text: str) -> set[str]:
-    matches: set[str] = set()
-    for theme, terms in PROFILE_TERMS.items():
-        if any(term in text for term in terms):
-            matches.add(theme)
-    return matches
-
-
 def match_preferences(text: str, private_inputs: PrivateInputs) -> list[str]:
     matches: list[str] = []
     for preference in private_inputs.preferences.likes + private_inputs.industries:
@@ -299,9 +271,19 @@ def match_preferences(text: str, private_inputs: PrivateInputs) -> list[str]:
         ]
         if terms and any(term in text for term in terms):
             matches.append(preference)
-    if any(term in text for term in PREFERRED_LOCATION_TERMS):
-        matches.append("preferred location")
     return matches
+
+
+def match_dislikes(text: str, private_inputs: PrivateInputs) -> list[str]:
+    return [
+        dislike
+        for dislike in private_inputs.preferences.dislikes
+        if any(
+            term in text
+            for term in dislike.lower().replace("-", " ").split()
+            if len(term) > 3 and term not in PREFERENCE_STOPWORDS
+        )
+    ]
 
 
 def company_has_connection(company: str, sources: list[CompanySource]) -> bool:

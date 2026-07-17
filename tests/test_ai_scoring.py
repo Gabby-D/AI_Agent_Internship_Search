@@ -29,7 +29,7 @@ def make_private_inputs() -> PrivateInputs:
         companies=[],
         industries=["finance", "operations"],
         preferences=Preferences(
-            likes=["Located in the Bay Area or Israel", "Paid position"],
+            likes=["Preferred location", "Preferred work arrangement"],
             dislikes=["marketing"],
         ),
         program=ProgramInfo(

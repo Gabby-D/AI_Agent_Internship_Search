@@ -23,9 +23,9 @@ def make_private_inputs() -> PrivateInputs:
             Company(name="PWC", website="www.pwc.com", has_connection=True),
             Company(name="BlackRock", website="www.blackrock.com", has_connection=True),
         ],
-        industries=["financial related", "aerospace and defence", "operations", "geopolitics"],
+        industries=["example industry", "research"],
         preferences=Preferences(
-            likes=["Located in the Bay Area or Israel", "Paid position"],
+            likes=["Preferred location", "Preferred work arrangement"],
             dislikes=["marketing"],
         ),
         program=ProgramInfo(
@@ -78,12 +78,12 @@ def test_discover_companies_excludes_existing_seed_companies():
     assert "PWC" not in names
     assert "BlackRock" not in names
     assert "Goldman Sachs" not in names
-    assert {"JPMorgan Chase", "Lockheed Martin", "Palantir"}.issubset(names)
+    assert names == set()
 
 
 def test_discover_companies_from_internet_adds_new_company():
     private_inputs = make_private_inputs()
-    interest_terms = {"financial", "operations", "aerospace", "geopolitics", "located", "israel", "paid", "position"}
+    interest_terms = {"example", "industry", "research", "preferred", "location", "work", "arrangement"}
     suggestions, errors = discover_companies_from_internet(
         private_inputs=private_inputs,
         interest_terms=interest_terms,
@@ -110,7 +110,7 @@ def test_discover_companies_merges_internet_and_curated():
     names = {company.name for company in bundle.suggestions}
     assert "Citadel" in names
     assert bundle.internet_suggestions >= 1
-    assert bundle.curated_suggestions >= 1
+    assert bundle.curated_suggestions == 0
 
 
 def test_extract_company_name_from_search_result():

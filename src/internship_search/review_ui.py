@@ -443,7 +443,7 @@ def _build_handler(data_path: Path, private_path: Path):
                 "files": {
                     filename: read_editable_text(filename, private_dir=self.private_dir)
                     for filename in (
-                        "mcgill_class_list.md",
+                        "course_list.md",
                         "connections.md",
                         "resume_summary.md",
                     )
@@ -938,7 +938,7 @@ def render_review_page() -> str:
 
       referenceFilesLoaded = true;
       const labels = {
-        "mcgill_class_list.md": "Course and program information",
+        "course_list.md": "Course and program information",
         "connections.md": "Connection notes",
         "resume_summary.md": "Resume summary",
       };

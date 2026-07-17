@@ -14,16 +14,16 @@ Implemented a modular private input loader that parses the local private files i
 
 - `private/list_of_companies.md`
 - `private/preferences.md`
-- `private/mcgill_class_list.md`
+- `private/course_list.md`
 - `private/connections.md`
-- `private/Resume - Gabrielle Dar.pdf`
+- `private/resume.pdf`
 
 ## Behavior
 
 - Parses company names, websites, and connection status.
 - Parses industries of interest from the company file.
 - Parses likes and dislikes from preferences.
-- Parses program information and coursework from the McGill course list.
+- Parses program information and coursework from the user's private course list.
 - Allows missing or empty optional connections notes.
 - Detects whether the resume PDF exists without reading or exposing resume contents.
 - Provides clear `PrivateInputError` messages for malformed required inputs.

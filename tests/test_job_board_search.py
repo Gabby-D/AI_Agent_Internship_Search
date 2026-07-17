@@ -182,7 +182,7 @@ def test_collect_from_sources_can_merge_job_board_results(tmp_path, monkeypatch)
                 JobBoardPosting(
                     title="2027 Operations Summer Intern",
                     company="Board Co",
-                    location="Bay Area",
+                    location="Preferred City",
                     posting_url="https://boards.greenhouse.io/board/jobs/42",
                     posting_id="42",
                     snippet="",

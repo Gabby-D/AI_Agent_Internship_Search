@@ -19,7 +19,7 @@ These files are generated locally and ignored by git through the existing `data/
 
 ## Behavior
 
-- Sends draft metadata to `gabrielle.dar@gmail.com` by default.
+- Uses an explicitly supplied recipient or `EMAIL_TO` from the ignored `.env` file.
 - Selects scored internships whose URLs are not already in `data/email_sent_history.json`.
 - Avoids repeating internship URLs already included in a previous weekly email summary.
 - Groups roles by company and fit level.
@@ -43,7 +43,7 @@ The task goal says to send a real weekly email, but no SMTP/API email provider o
 ## Latest Local Run
 
 - Generated `data/weekly_email_summary.md`.
-- Default recipient: `gabrielle.dar@gmail.com`.
+- Recipient: explicit `--recipient` or private `EMAIL_TO`; no tracked fallback recipient.
 - First no-repeat run selected 4 unsent internships.
 - Follow-up no-repeat check selected 0 internships, confirming previously included URLs are excluded.
 - Send status: draft only.

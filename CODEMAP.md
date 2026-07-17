@@ -43,7 +43,7 @@ Current CLI commands:
 - `src/internship_search/job_collector.py` fetches career source pages and extracts first-pass posting candidates.
 - `src/internship_search/posting_history.py` tracks new, seen, changed, missing, and duplicate postings across runs using URL and role-key matching.
 - `src/internship_search/internship_listing.py` classifies specific internship listings versus generic program or search pages.
-- `src/internship_search/posting_filter.py` filters posting candidates for likely Summer 2027 internship relevance.
+- `src/internship_search/posting_filter.py` filters posting candidates for likely target-cycle internship relevance.
 - `src/internship_search/review_report.py` generates a readable local Markdown review report.
 - `src/internship_search/fit_scoring.py` scores filtered postings through replaceable AI or local providers.
 - `src/internship_search/resume_scoring.py` loads optional resume summaries for opt-in AI scoring.

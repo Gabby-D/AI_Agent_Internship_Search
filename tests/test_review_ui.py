@@ -84,13 +84,13 @@ def write_private_inputs(private_dir):
     (private_dir / "preferences.md").write_text(
         "# Preferences\n"
         "## Things I like\n"
-        "1. Paid position\n"
+        "1. Preferred role type\n"
         "## Things I don't like\n"
         "1. marketing\n",
         encoding="utf-8",
     )
-    (private_dir / "mcgill_class_list.md").write_text(
-        "# McGill Course List\n"
+    (private_dir / "course_list.md").write_text(
+        "# Course List\n"
         "## Program\n"
         "- **Major:** Mathematics and Statistics for Management\n"
         "## Management Core Courses\n"
@@ -121,13 +121,13 @@ def test_set_posting_review_writes_to_review_status(tmp_path):
 def test_save_ui_preferences_writes_likes_and_dislikes(tmp_path):
     output_path = tmp_path / "ui_preferences.json"
     save_ui_preferences(
-        likes=["Paid position", "Bay Area"],
+        likes=["Preferred role type", "Preferred location"],
         dislikes=["marketing"],
         output_path=output_path,
     )
 
     raw = json.loads(output_path.read_text(encoding="utf-8"))
-    assert raw["likes"] == ["Paid position", "Bay Area"]
+    assert raw["likes"] == ["Preferred role type", "Preferred location"]
     assert raw["dislikes"] == ["marketing"]
 
 
@@ -225,7 +225,7 @@ def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
     assert included["notes"] == "Follow up after the information session."
     assert dashboard["summary"]["email_ready"] == 1
     assert dashboard["summary"]["new_postings"] == 1
-    assert dashboard["preferences"]["likes"] == ["Paid position"]
+    assert dashboard["preferences"]["likes"] == ["Preferred role type"]
     assert "Connected Co" in dashboard["filter_options"]["companies"]
     assert dashboard["monitored_companies"] == [
         {
@@ -375,7 +375,7 @@ def test_filter_review_postings_supports_status_company_connection_and_email_fil
 def test_filter_review_postings_hides_non_preferred_locations():
     postings = [
         ReviewablePosting(
-            title="Bay Area Intern",
+            title="Preferred Location Intern",
             company="Example Co",
             location="San Francisco, CA",
             posting_url="https://example.com/jobs/1",
@@ -489,14 +489,14 @@ def test_load_ui_preferences_prefers_saved_ui_file(tmp_path):
     private_dir = tmp_path / "private"
     write_private_inputs(private_dir)
     save_ui_preferences(
-        likes=["Israel opportunities"],
+        likes=["Preferred location"],
         dislikes=["social media"],
         output_path=tmp_path / "ui_preferences.json",
     )
 
     preferences = load_ui_preferences(private_dir, tmp_path / "ui_preferences.json")
     assert preferences["source"] == "ui"
-    assert preferences["likes"] == ["Israel opportunities"]
+    assert preferences["likes"] == ["Preferred location"]
 
 
 def test_load_review_dashboard_skips_stale_non_preferred_locations(tmp_path):

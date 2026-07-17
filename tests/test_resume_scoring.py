@@ -29,7 +29,7 @@ def make_private_inputs() -> PrivateInputs:
     return PrivateInputs(
         companies=[],
         industries=["finance"],
-        preferences=Preferences(likes=["Paid position"], dislikes=["marketing"]),
+        preferences=Preferences(likes=["Preferred role type"], dislikes=["Excluded role type"]),
         program=ProgramInfo(
             faculty="Desautels Faculty of Management",
             major="Mathematics and Statistics for Management",
@@ -39,7 +39,7 @@ def make_private_inputs() -> PrivateInputs:
             Course(code="MGCR 233", title="Data Programming for Business", category="Core"),
         ],
         connections_notes="",
-        resume_path=Path("private/Resume - Gabrielle Dar.pdf"),
+        resume_path=Path("private/resume.pdf"),
     )
 
 

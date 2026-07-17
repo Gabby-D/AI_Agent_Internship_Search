@@ -10,7 +10,7 @@ Ran the full live workflow with job-board search on July 15, 2026. The workflow 
 - Collected 12 posting candidates.
 - Included 1 location-safe role and excluded 11 roles outside the location policy.
 - Scored the included role with Gemini and generated a local email draft without sending email.
-- Dashboard API returned the included role and correctly retained the Bay Area/Israel/fully-remote policy message.
+- Dashboard API returned the included role and correctly displayed the user's preference-of-location policy message.
 
 ### Included role
 
@@ -34,7 +34,7 @@ The Relling collector initially extracted the role with an `Unknown` location, c
 ## Acceptance checks
 
 - [x] Workflow completed and recorded its run details in `data/scheduled_collection_runs.jsonl`.
-- [x] Included roles satisfy the Bay Area, Israel, or fully remote location policy.
+- [x] Included roles satisfy the user's preference of location or the fully remote policy.
 - [x] Dashboard contains no disallowed-location role; its empty-state policy message is served when no qualifying roles exist.
 - [x] Failed sources have a specific diagnostic in `data/collection_errors.jsonl` or a documented no-openings status in `data/monitored_no_openings.jsonl`.
 

@@ -26,7 +26,7 @@ uv run pytest tests/test_career_collectors.py -q
 
 Live checks during implementation:
 
-- PwC: 10 Summer 2027 intern postings from `jobs-us.pwc.com`
+- Example source: multiple target-cycle intern postings from a public careers site
 - Bakar tenant (Glyphic Biotechnologies): Consider API returned company jobs with a clear no-internship warning
 - BlackRock, Bain, McKinsey: still partially JavaScript-rendered; BlackRock direct `/job/` URLs and registry alternates continue to work
 

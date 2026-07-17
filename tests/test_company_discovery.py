@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from internship_search.company_discovery import (
+    DiscoveredCompany,
     discover_companies,
     merge_discovered_sources,
     render_discovery_report,
@@ -21,9 +22,9 @@ def make_private_inputs() -> PrivateInputs:
             Company(name="PWC", website="www.pwc.com", has_connection=True),
             Company(name="BlackRock", website="www.blackrock.com", has_connection=True),
         ],
-        industries=["financial related", "aerospace and defence", "operations", "geopolitics"],
+        industries=["example industry", "research"],
         preferences=Preferences(
-            likes=["Located in the Bay Area or Israel", "Paid position"],
+            likes=["Preferred location", "Preferred work arrangement"],
             dislikes=["marketing", "social media"],
         ),
         program=ProgramInfo(
@@ -60,12 +61,22 @@ def test_discover_companies_excludes_existing_seed_companies():
     assert "PWC" not in names
     assert "BlackRock" not in names
     assert "Goldman Sachs" not in names
-    assert {"JPMorgan Chase", "Lockheed Martin", "Palantir"}.issubset(names)
+    assert names == set()
 
 
 def test_render_discovery_report_includes_review_fields():
-    suggestions = discover_companies(private_inputs=make_private_inputs(), use_internet=False).suggestions
-    report = render_discovery_report(suggestions[:1])
+    suggestion = DiscoveredCompany(
+        name="Example Company",
+        website="https://example.com",
+        careers_url="https://example.com/careers",
+        industry_tags=["example industry"],
+        reason="Example suggestion.",
+        source="test",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    )
+    report = render_discovery_report([suggestion])
 
     assert "# Discovered Company Suggestions" in report
     assert "Should add to source registry" in report
@@ -73,7 +84,17 @@ def test_render_discovery_report_includes_review_fields():
 
 
 def test_write_discovered_companies_writes_json(tmp_path):
-    suggestions = discover_companies(private_inputs=make_private_inputs(), use_internet=False).suggestions
+    suggestions = [DiscoveredCompany(
+        name="Example Company",
+        website="https://example.com",
+        careers_url="https://example.com/careers",
+        industry_tags=["example industry"],
+        reason="Example suggestion.",
+        source="test",
+        origin="discovered",
+        should_add_to_source_registry=True,
+        review_status="suggested",
+    )]
     output_path = tmp_path / "discovered_companies.json"
 
     write_discovered_companies(suggestions[:1], output_path)
@@ -83,7 +104,20 @@ def test_write_discovered_companies_writes_json(tmp_path):
 
 
 def test_merge_discovered_sources_adds_suggestions_without_duplicates(tmp_path):
-    suggestions = discover_companies(private_inputs=make_private_inputs(), use_internet=False).suggestions
+    suggestions = [
+        DiscoveredCompany(
+            name=f"Example Company {index}",
+            website=f"https://example{index}.com",
+            careers_url=f"https://example{index}.com/careers",
+            industry_tags=["example industry"],
+            reason="Example suggestion.",
+            source="test",
+            origin="discovered",
+            should_add_to_source_registry=True,
+            review_status="suggested",
+        )
+        for index in (1, 2)
+    ]
     output_path = tmp_path / "source_registry.json"
 
     merge_discovered_sources(

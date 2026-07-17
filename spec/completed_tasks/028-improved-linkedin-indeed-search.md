@@ -7,7 +7,7 @@ Increase useful internship coverage from LinkedIn and Indeed beyond the current 
 ## Implemented
 
 - Added `job_board_listings.py` for LinkedIn and Indeed URL normalization, listing detection, and platform counting.
-- Expanded DuckDuckGo default queries with additional LinkedIn and Indeed `site:` variants for summer 2027 internships.
+- Expanded DuckDuckGo default queries with additional LinkedIn and Indeed `site:` variants for the target internship cycle.
 - DuckDuckGo provider now runs all default query templates instead of stopping early when ATS results fill the quota.
 - Canonical posting URLs normalize LinkedIn job IDs and Indeed `jk` parameters for stable deduplication.
 - `merge_posting_candidates` applies role-key deduplication so career-page URLs win over LinkedIn/Indeed duplicates.

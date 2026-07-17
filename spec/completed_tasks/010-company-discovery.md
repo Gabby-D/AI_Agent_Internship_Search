@@ -21,7 +21,7 @@ These files are generated locally and ignored by git through the existing `data/
 
 - Uses the private seed company list, industries, and preferences.
 - Expands beyond the original seed companies.
-- Suggests companies in finance, consulting, aerospace and defense, operations, geopolitics, Bay Area technology, and Israel-related technology.
+- Suggests companies based on industries and preferences loaded from ignored private inputs.
 - Includes official websites and careers pages from a local curated list.
 - Marks suggestions with `origin = discovered`.
 - Keeps suggestions reviewable and separate from the active source registry by default.

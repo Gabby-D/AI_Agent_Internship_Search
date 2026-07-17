@@ -20,7 +20,7 @@ This file is generated locally and ignored by git through the existing `data/` i
 ## Behavior
 
 - Accepts a search query and returns structured results with title, URL, snippet, provider, query, and date searched.
-- Supports a company shortcut that builds a careers-focused query such as `BlackRock summer 2027 internship careers`.
+- Supports a company shortcut that builds a careers-focused query for the configured internship cycle.
 - Ranks results to prefer official company and careers domains over social or blocked domains.
 - Loads optional credentials from `.env` without adding new dependencies.
 - Uses DuckDuckGo HTML search by default.
@@ -33,7 +33,7 @@ This file is generated locally and ignored by git through the existing `data/` i
 Search with an explicit query:
 
 ```powershell
-uv run internship-search internet-search --query "BlackRock summer 2027 internship careers"
+uv run internship-search internet-search --query "Example Company internship careers"
 ```
 
 Search for a seed company:
@@ -63,7 +63,7 @@ Result: `55 passed`, including mocked provider tests.
 
 ## Latest Local Run
 
-- Query: `BlackRock summer 2027 internship careers`
+- Query: `Example Company internship careers`
 - Provider: `duckduckgo_html`
 - Results: 5
 - Top hit: `https://careers.blackrock.com/job/new-york/2027-summer-internship-program-amers/...`
