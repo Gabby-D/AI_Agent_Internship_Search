@@ -2,7 +2,7 @@
 
 Use this directory for generated search results, cached job postings, scoring outputs, and weekly summaries.
 
-Generated files in this directory are ignored by git by default.
+Generated files in this directory are ignored by git by default. Some contain personal notes, search history, application state, or email metadata; do not force-add them to git.
 
 Current generated files:
 
@@ -30,3 +30,5 @@ Current generated files:
 - `posting_notes.json` contains local personal notes keyed by posting URL.
 - `activity_log.jsonl` contains dated, append-only local UI activity records.
 - `ui_preferences.json` is a legacy local preferences cache; the review UI edits `private/preferences.md`.
+
+Most JSONL files contain one JSON object per line. Files described as “latest run” are replaced on the next run; history, sent-history, review-state, note, dismissal, activity-log, and scheduler-log files persist across runs.

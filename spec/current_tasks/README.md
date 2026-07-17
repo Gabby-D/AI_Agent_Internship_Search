@@ -8,7 +8,7 @@ Maintain the completed local internship-search workflow and add new work when ne
 
 ## Task Order
 
-No active current tasks. The first local collection, filtering, and review milestone is complete.
+No active current tasks. All tasks through `040-internship-focused-summaries.md` are recorded under `spec/completed_tasks/`.
 
 ## Current Focus
 

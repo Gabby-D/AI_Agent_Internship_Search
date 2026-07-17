@@ -10,11 +10,11 @@ The application loads these filenames:
 - `preferences.md` (required) for liked and disliked role characteristics, including location preferences.
 - `mcgill_class_list.md` (required) for program and coursework information.
 - `connections.md` (optional) for connection notes.
-- `Resume - Gabrielle Dar.pdf` (optional) for local resume-presence detection.
+- A legacy project-specific PDF resume filename (optional) for presence-only detection by the private-input loader.
 - `resume_summary.md` (optional and recommended) for resume-aware Gemini scoring. The scorer also accepts `resume.md` or `resume.txt`.
-- `attachments/` (optional) subdirectory containing additional supporting documents (e.g., transcripts, cover letters, portfolios) that are parsed and sent as multimodal inputs during AI scoring.
+- `attachments/` (optional) for supporting documents managed by the Review UI. Uploads accept PDF, Word (`.doc`, `.docx`), text (`.txt`, `.md`), and image files (`.png`, `.jpg`, `.jpeg`, `.gif`) up to 5 MB each.
 
-The PDF is not parsed or sent to an AI provider by default. Resume/attachment text and media are included in Gemini prompts only when scoring is run; text, PDF, and image attachments are base64-encoded and sent as inline data parts for multimodal analysis.
+The standalone legacy resume PDF is only checked for existence and is not parsed or sent. Resume-summary text is sent to Gemini only when resume-aware scoring is enabled. In contrast, supported files under `attachments/` are sent whenever Gemini scoring runs, regardless of the resume-aware setting: text files become prompt text, while PDFs and images are sent as inline data. Word uploads remain local and are not currently included in scoring. Use `AI_PROVIDER=local` if attachments must remain on the machine during scoring.
 
 ## Required formats
 
@@ -22,4 +22,4 @@ The PDF is not parsed or sent to an AI provider by default. Resume/attachment te
 - `preferences.md` uses `## Things I like` and `## Things I don't like` sections with list items.
 - `mcgill_class_list.md` uses a `## Program` section and course sections whose list items follow `COURSE CODE: Course title`.
 
-Everything in this directory is ignored by git except this README, `.gitkeep`, and subfolder READMEs.
+Everything in this directory is ignored by git except this README and `.gitkeep`. Confirm with `git check-ignore private/<filename>` before staging changes.

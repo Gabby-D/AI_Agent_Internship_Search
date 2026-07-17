@@ -4,7 +4,7 @@ Use this folder for planned work that is not ready to implement yet.
 
 ## Future Roadmap
 
-The core implementation, operational validation, and release-readiness tasks are complete. The current roadmap focuses on improving the local review workflow and preserving private user context.
+The core implementation, operational validation, release-readiness work, and currently planned review-workflow improvements are complete. No future implementation task is currently scheduled.
 
 The current company list remains seed input. Discovery, internet search, and job-board providers can continue expanding the registry over time.
 

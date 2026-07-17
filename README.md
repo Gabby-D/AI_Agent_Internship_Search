@@ -27,10 +27,11 @@ Create local files under `private/` (not committed to git):
 - `preferences.md` — required likes, dislikes, and location preferences
 - `mcgill_class_list.md` — required coursework and program info
 - `connections.md` — optional connection notes
-- `Resume - Gabrielle Dar.pdf` — optional local resume reference; the PDF is not parsed
+- The legacy project-specific PDF resume filename — optional presence-only resume reference; this standalone PDF is not parsed
 - `resume_summary.md` — optional resume text used only for explicitly enabled resume-aware Gemini scoring; `resume.md` and `resume.txt` are also accepted
+- `attachments/` — optional supporting files managed from the Review UI; see the privacy note below before using Gemini scoring
 
-See `private/README.md` for the exact filenames and resume-handling behavior.
+See `private/README.md` for supported formats, attachment limits, and resume-handling behavior.
 
 ### 3. Configure environment variables
 
@@ -47,7 +48,7 @@ Common variables:
 | `AI_PROVIDER_API_KEY` | Gemini API key for fit scoring |
 | `AI_PROVIDER` | `auto`, `gemini`, or `local` |
 | `AI_PROVIDER_MODEL` | Gemini model name (default: `gemini-2.5-flash`) |
-| `AI_RESUME_SCORING_ENABLED` | Set `true` to include the first supported private resume-summary file in Gemini scoring prompts |
+| `AI_RESUME_SCORING_ENABLED` | Set `true` to include the first supported private resume-summary file in Gemini prompts; files under `private/attachments/` are handled separately |
 | `EMAIL_FROM`, `EMAIL_TO`, `EMAIL_SMTP_PASSWORD` | SMTP settings for weekly email delivery |
 | `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT` | SMTP server settings (defaults: `smtp.gmail.com` and `587`) |
 | `EMAIL_SMTP_USER` | SMTP username (defaults to `EMAIL_FROM`) |
@@ -206,7 +207,7 @@ The dashboard has five tabs:
 - **Postings** groups roles as To review, Applied, Not interested, or Archived. Each row shows the job, company, location, connection indicator, career-posting link, review-status control, and an expandable summary with highlights and personal notes.
 - **Companies** edits the monitored-company list, official career URLs, connection flags, and industries. Saving updates `private/list_of_companies.md` and rebuilds the local source registry.
 - **Preferences** edits likes and dislikes in `private/preferences.md`.
-- **Reference Files** edits the course list, connection notes, resume summary, and manages uploaded file attachments (PDFs, docs, images) with local validation rules.
+- **Reference Files** edits the course list, connection notes, and resume summary, and manages local supporting attachments. Uploads accept PDF, Word, text, and image files up to 5 MB each; only text, PDF, and image attachments are currently included in Gemini scoring requests.
 - **Activity Log** displays dated local changes in reverse chronological order with filter controls and cost transparency badges.
 
 The dashboard displays the active location policy and refreshes its data every 30 seconds when a text field is not focused. New companies are included in future posting searches after the next scheduled collection, or immediately after running `uv run internship-search run-scheduled-collection --include-job-boards`.
@@ -231,7 +232,7 @@ Send by SMTP when email credentials are configured:
 uv run internship-search weekly-email-summary --send
 ```
 
-The summary uses `data/email_sent_history.json` to avoid repeating internships already sent successfully.
+The summary uses `data/email_sent_history.json` to avoid repeating internships already sent successfully. Recipient selection is: explicit `--recipient`, then `EMAIL_TO`, then the program's legacy fallback. Set `EMAIL_TO` explicitly for normal use.
 
 ## Scheduled Automation
 
@@ -325,6 +326,9 @@ Common outputs in `data/`:
 - `weekly_email_summary.md` — email draft
 - `posting_history.json` — tracked posting status across runs
 - `posting_reviews.json` — review UI status changes
+- `posting_notes.json` — private notes saved from the review UI
+- `company_dismissals.json` — dismissed company suggestions
+- `activity_log.jsonl` — local dashboard and workflow activity
 
 See `data/README.md` for the full list.
 
@@ -353,9 +357,9 @@ Implemented and working locally:
 - Job-board search with DuckDuckGo queries for Greenhouse, Lever, Workday, LinkedIn, and Indeed
 - Weekly email draft and SMTP delivery
 - Windows Task Scheduler automation with missed-run catch-up
-- Local review UI with status-based lists, supporting file attachments, company recommendation dismissals, and activity log filtering with cost transparency.
- 
-All planned milestones, including live workflow validation, scheduler automation, Reference File attachments, activity log filtering, cost transparency, and internship-focused role summaries, have been fully implemented, validated by 214 passing unit tests, and verified locally.
+- Local review UI with status-based lists, supporting file attachments, company recommendation dismissals, activity-log filtering, and cost transparency
+
+All currently planned milestones are complete. The full automated suite passed locally on July 17, 2026 (214 tests).
 
 ## Privacy
 
@@ -367,4 +371,4 @@ Do not commit:
 
 Set `EMAIL_TO` in `.env` before sending so delivery does not use the project's fallback recipient.
 
-The project is designed to keep personal data local by default.
+The project keeps `private/` and generated `data/` files out of git by default. Gemini scoring is an explicit external-data boundary: when Gemini is selected, supported files in `private/attachments/` are sent with each scoring request even if resume-aware summary scoring is disabled. Text (`.txt`, `.md`), PDF, and image (`.png`, `.jpg`, `.jpeg`, `.gif`) attachments are sent; uploaded Word files are stored locally but are not currently included in scoring. Review attachment contents before running Gemini scoring, or use `AI_PROVIDER=local` to keep scoring local.
