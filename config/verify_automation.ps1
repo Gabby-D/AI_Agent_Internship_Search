@@ -29,7 +29,11 @@ for key in keys:
 
 Write-Host ""
 Write-Host "=== Scheduled tasks ==="
-$TaskNames = @("AI Agent Internship Search", "AI Agent Internship Weekly Email")
+$TaskNames = @(
+    "AI Agent Internship Company Discovery",
+    "AI Agent Internship Search",
+    "AI Agent Internship Weekly Email"
+)
 foreach ($TaskName in $TaskNames) {
     $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if ($null -eq $Task) {

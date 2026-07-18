@@ -253,7 +253,7 @@ The summary uses `data/email_sent_history.json` to avoid repeating internships a
 
 ## Scheduled Automation
 
-Register daily collection and Monday weekly-email tasks:
+Register weekly company discovery, daily collection, and Monday weekly-email tasks:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File config/register_scheduled_tasks.ps1
@@ -261,6 +261,7 @@ powershell -ExecutionPolicy Bypass -File config/register_scheduled_tasks.ps1
 
 This registers:
 
+- **Recommended-company discovery** on Monday at 8:30 AM
 - **Daily collection** at 9:00 AM with `--include-job-boards`
 - **Weekly email send** on Monday at 10:00 AM
 
@@ -270,6 +271,7 @@ Wrapper scripts:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File config/run_scheduled_collection.ps1
+powershell -ExecutionPolicy Bypass -File config/run_company_discovery.ps1
 powershell -ExecutionPolicy Bypass -File config/run_weekly_email.ps1
 ```
 
@@ -290,10 +292,11 @@ After setup, confirm automation is working:
 
 1. **Email credentials** — `.env` has `EMAIL_FROM`, `EMAIL_TO`, and `EMAIL_SMTP_PASSWORD` set.
 2. **Live email test** — `uv run internship-search weekly-email-summary --send` reports `Email sent to ...` and updates `data/email_sent_history.json` only after a successful send.
-3. **Scheduled tasks** — Task Scheduler shows both tasks as **Ready** with recent last-run times after the computer is on.
+3. **Scheduled tasks** — Task Scheduler shows all three tasks as **Ready** with recent last-run times after the computer is on.
 4. **Collection logs** — `data/scheduled_collection_runs.jsonl` gains a new line after each collection run. `status: partial` is normal when some company pages fail but scoring and the email draft still complete.
 5. **Wrapper logs** — `data/scheduled_run_output/` contains timestamped `.log` files from the PowerShell wrappers.
 6. **Job board search (optional)** — `uv run internship-search search-job-boards` reports `Provider: duckduckgo_job_board` and writes `data/job_board_postings.jsonl`.
+7. **Company discovery** — Monday's discovery log writes `company_discovery_*.log`, while refreshed suggestions appear in `data/discovered_companies.json` and the Companies tab.
 
 ### Troubleshooting failed runs
 
