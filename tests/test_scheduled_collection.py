@@ -40,7 +40,7 @@ def test_run_scheduled_collection_composes_pipeline_and_logs(monkeypatch, tmp_pa
     monkeypatch.setattr(
         job_collector,
         "collect_from_registry_file",
-        lambda registry_path, output_path, include_job_boards=False, target_year="2027": calls.append("collect")
+        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027": calls.append("collect")
         or SimpleNamespace(postings=[object(), object()], errors=[]),
     )
     monkeypatch.setattr(
@@ -127,7 +127,7 @@ def test_run_scheduled_collection_marks_partial_when_source_errors_occur(monkeyp
     monkeypatch.setattr(
         job_collector,
         "collect_from_registry_file",
-        lambda registry_path, output_path, include_job_boards=False, target_year="2027": SimpleNamespace(
+        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027": SimpleNamespace(
             postings=[object()],
             errors=[SimpleNamespace(company="McKinsey", message="timed out")],
         ),
@@ -188,7 +188,7 @@ def test_run_scheduled_collection_summary_includes_ai_fallbacks(monkeypatch, tmp
     monkeypatch.setattr(
         job_collector,
         "collect_from_registry_file",
-        lambda registry_path, output_path, include_job_boards=False, target_year="2027": SimpleNamespace(
+        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027": SimpleNamespace(
             postings=[object()],
             errors=[],
         ),
@@ -304,7 +304,13 @@ def test_run_scheduled_collection_records_failure_and_skips_email(monkeypatch, t
     monkeypatch.setattr(source_registry, "load_seed_source_registry", lambda private_dir: [])
     monkeypatch.setattr(source_registry, "write_source_registry", lambda sources, output_path: Path(output_path))
 
-    def fail_collection(registry_path, output_path, include_job_boards=False, target_year="2027"):
+    def fail_collection(
+        registry_path,
+        output_path,
+        errors_output_path=None,
+        include_job_boards=False,
+        target_year="2027",
+    ):
         raise RuntimeError("network unavailable")
 
     monkeypatch.setattr(job_collector, "collect_from_registry_file", fail_collection)

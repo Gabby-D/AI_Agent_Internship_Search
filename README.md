@@ -251,6 +251,8 @@ uv run internship-search weekly-email-summary --send
 
 The summary uses `data/email_sent_history.json` to avoid repeating internships already sent successfully. Recipient selection is: explicit `--recipient`, then `EMAIL_TO` from the ignored `.env` file. Sending fails safely when no recipient is configured.
 
+The email also includes a **Company Job-Site Access Problems** section from the latest collection. Each problem lists the company, careers URL, and error message so the source can be checked or corrected in the Companies tab. When problems exist, their count is also shown in the email subject.
+
 ## Scheduled Automation
 
 Register weekly company discovery, daily collection, and Monday weekly-email tasks:
@@ -382,7 +384,7 @@ Implemented and working locally:
 - Windows Task Scheduler automation with missed-run catch-up
 - Local review UI with status-based lists, supporting file attachments, company recommendation dismissals, activity-log filtering, and cost transparency
 
-All currently planned milestones are complete. The full automated suite passed locally on July 17, 2026 (214 tests).
+All currently planned milestones are complete. The full automated suite passed locally on July 17, 2026 (216 tests).
 
 ## Privacy
 

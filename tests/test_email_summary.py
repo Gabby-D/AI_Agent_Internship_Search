@@ -5,7 +5,8 @@ from internship_search.email_summary import (
     select_email_postings,
 )
 from internship_search.fit_scoring import ScoredPosting, write_scored_postings_jsonl
-from internship_search.job_collector import JobPosting, write_postings_jsonl
+from internship_search.job_collector import CollectionError, JobPosting, write_postings_jsonl
+from internship_search.monitored_companies import write_collection_errors_jsonl
 from internship_search.source_registry import CompanySource, write_source_registry
 
 
@@ -144,3 +145,41 @@ def test_generate_weekly_email_summary_file_excludes_previously_sent_postings(tm
     assert summary.selected_postings == []
     assert "no unsent new internships" in summary.subject
     assert "No unsent new internships are ready" in output_path.read_text(encoding="utf-8")
+
+
+def test_generate_weekly_email_includes_company_job_site_access_problems(tmp_path):
+    scored_path = tmp_path / "scored.jsonl"
+    new_path = tmp_path / "new.jsonl"
+    registry_path = tmp_path / "registry.json"
+    errors_path = tmp_path / "collection_errors.jsonl"
+    output_path = tmp_path / "weekly_email_summary.md"
+
+    write_scored_postings_jsonl([], scored_path)
+    write_postings_jsonl([], new_path)
+    write_source_registry([make_source(company="Example Company")], registry_path)
+    write_collection_errors_jsonl(
+        [
+            CollectionError(
+                company="Example Company",
+                source_url="https://example.com/careers",
+                message="HTTP 403 Forbidden",
+            )
+        ],
+        errors_path,
+    )
+
+    summary = generate_weekly_email_summary_file(
+        scored_path=scored_path,
+        new_postings_path=new_path,
+        registry_path=registry_path,
+        collection_errors_path=errors_path,
+        output_path=output_path,
+        sent_history_path=tmp_path / "sent.json",
+    )
+
+    content = output_path.read_text(encoding="utf-8")
+    assert "1 job-site problem" in summary.subject
+    assert "## Company Job-Site Access Problems" in content
+    assert "Example Company" in content
+    assert "https://example.com/careers" in content
+    assert "HTTP 403 Forbidden" in content

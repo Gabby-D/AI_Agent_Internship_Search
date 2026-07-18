@@ -67,6 +67,7 @@ def run_scheduled_collection(
     excluded_path = data_path / "excluded_postings.jsonl"
     report_path = data_path / "latest_report.md"
     scored_path = data_path / "scored_postings.jsonl"
+    collection_errors_path = data_path / "collection_errors.jsonl"
     email_path = data_path / "weekly_email_summary.md"
     sent_history_path = data_path / "email_sent_history.json"
     log_path = data_path / "scheduled_collection_runs.jsonl"
@@ -104,6 +105,7 @@ def run_scheduled_collection(
             collection_result = collect_from_registry_file(
                 registry_path=registry_path,
                 output_path=postings_path,
+                errors_output_path=collection_errors_path,
                 include_job_boards=include_job_boards,
                 target_year=target_year,
             )
@@ -278,6 +280,7 @@ def run_scheduled_collection(
                 output_path=email_path,
                 sent_history_path=sent_history_path,
                 history_path=history_path,
+                collection_errors_path=collection_errors_path,
                 send=send_email,
             )
             detail = f"Selected {len(email_result.selected_postings)} postings for email."

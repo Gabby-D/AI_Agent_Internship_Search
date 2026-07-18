@@ -298,6 +298,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the record of postings already included in email summaries.",
     )
     weekly_email.add_argument(
+        "--collection-errors",
+        type=Path,
+        default=Path("data/collection_errors.jsonl"),
+        help="Path to latest company job-site access errors to include in the email.",
+    )
+    weekly_email.add_argument(
         "--recipient",
         default=None,
         help="Optional email recipient. Defaults to EMAIL_TO from the private .env file.",
@@ -677,6 +683,7 @@ def main(argv: list[str] | None = None) -> int:
             registry_path=args.registry,
             output_path=args.output,
             sent_history_path=args.sent_history,
+            collection_errors_path=args.collection_errors,
             recipient=args.recipient,
             send=args.send,
         )

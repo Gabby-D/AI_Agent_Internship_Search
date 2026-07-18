@@ -9,7 +9,7 @@ from internship_search.email_summary import (
     render_delivery_email_body,
 )
 from internship_search.fit_scoring import ScoredPosting, write_scored_postings_jsonl
-from internship_search.job_collector import JobPosting, write_postings_jsonl
+from internship_search.job_collector import CollectionError, JobPosting, write_postings_jsonl
 from internship_search.source_registry import CompanySource, write_source_registry
 
 
@@ -113,6 +113,26 @@ def test_render_delivery_email_body_includes_posting_links():
 
     assert "2027 Summer Analyst Intern" in body
     assert "https://example.com/jobs/1" in body
+
+
+def test_render_delivery_email_body_includes_company_access_problems():
+    body = render_delivery_email_body(
+        selected_postings=[],
+        new_posting_urls=set(),
+        sources=[],
+        collection_errors=[
+            CollectionError(
+                company="Example Company",
+                source_url="https://example.com/careers",
+                message="Timed out",
+            )
+        ],
+    )
+
+    assert "Company job-site access problems:" in body
+    assert "Example Company" in body
+    assert "https://example.com/careers" in body
+    assert "Timed out" in body
 
 
 def test_generate_weekly_email_summary_file_updates_sent_history_only_after_send(tmp_path, monkeypatch):

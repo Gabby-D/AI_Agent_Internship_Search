@@ -44,5 +44,6 @@ Use this folder for notes about completed work and decisions.
 38. `039-activity-log-filtering-and-cost-transparency.md` - Added activity log filters, category badges, and API/SMTP cost transparency.
 39. `040-internship-focused-summaries.md` - Refocused expanded summaries on verified role facts and added title/notes deadline extraction.
 40. `041-weekly-company-discovery.md` - Scheduled weekly recommended-company discovery before collection and email delivery.
+41. `042-email-company-access-problems.md` - Added company job-site access problems and repair details to weekly emails.
 
 Task 025 was retired before implementation, so there is no completed-task file for that number.

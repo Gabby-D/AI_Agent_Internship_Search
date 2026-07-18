@@ -9,7 +9,8 @@ from pathlib import Path
 from internship_search.email_delivery import EmailDeliveryResult, deliver_email, summarize_email_delivery
 from internship_search.env_loader import get_env, load_env_into_process
 from internship_search.fit_scoring import ScoredPosting
-from internship_search.job_collector import read_postings_jsonl
+from internship_search.job_collector import CollectionError, read_postings_jsonl
+from internship_search.monitored_companies import read_collection_errors_jsonl
 from internship_search.source_registry import CompanySource, read_source_registry
 
 
@@ -41,6 +42,7 @@ def generate_weekly_email_summary_file(
     output_path: Path | str = "data/weekly_email_summary.md",
     sent_history_path: Path | str = "data/email_sent_history.json",
     history_path: Path | str | None = "data/posting_history.json",
+    collection_errors_path: Path | str | None = "data/collection_errors.jsonl",
     recipient: str | None = None,
     send: bool = False,
 ) -> EmailSummary:
@@ -54,6 +56,11 @@ def generate_weekly_email_summary_file(
     }
     sent_history = read_sent_history(sent_history_path)
     sources = read_source_registry(registry_path)
+    collection_errors = (
+        read_collection_errors_jsonl(collection_errors_path)
+        if collection_errors_path is not None
+        else []
+    )
     inactive_urls: set[str] = set()
     if history_path is not None:
         from internship_search.posting_history import inactive_posting_urls, read_history
@@ -65,7 +72,7 @@ def generate_weekly_email_summary_file(
         sent_posting_urls=set(sent_history),
         excluded_urls=inactive_urls,
     )
-    subject = build_subject(selected)
+    subject = build_subject(selected, collection_errors)
     delivery_result: EmailDeliveryResult | None = None
     email_sent = False
     send_status = describe_send_status(send_requested=send, recipient=resolved_recipient)
@@ -77,6 +84,7 @@ def generate_weekly_email_summary_file(
                 selected_postings=selected,
                 new_posting_urls=new_posting_urls,
                 sources=sources,
+                collection_errors=collection_errors,
             ),
             recipient=resolved_recipient,
         )
@@ -94,6 +102,7 @@ def generate_weekly_email_summary_file(
         subject=subject,
         recipient=resolved_recipient,
         send_status=send_status,
+        collection_errors=collection_errors,
     )
     path = write_email_summary(content, output_path)
 
@@ -156,6 +165,7 @@ def render_weekly_email_summary(
     subject: str,
     recipient: str | None,
     send_status: str,
+    collection_errors: list[CollectionError] | None = None,
 ) -> str:
     connection_by_company = {
         source.company: source.has_connection for source in sources
@@ -205,6 +215,7 @@ def render_weekly_email_summary(
                 for posting in postings:
                     lines.extend(render_email_posting(posting, new_posting_urls))
 
+    lines.extend(render_collection_errors_section(collection_errors or [], markdown=True))
     lines.extend(render_next_actions(selected_postings, connection_by_company))
     lines.extend(
         [
@@ -224,6 +235,7 @@ def render_delivery_email_body(
     selected_postings: list[ScoredPosting],
     new_posting_urls: set[str],
     sources: list[CompanySource],
+    collection_errors: list[CollectionError] | None = None,
 ) -> str:
     connection_by_company = {
         source.company: source.has_connection for source in sources
@@ -241,31 +253,78 @@ def render_delivery_email_body(
 
     if not grouped:
         lines.append("No unsent new internships are ready for this summary.")
-        return "\n".join(lines)
+    else:
+        for company, by_fit in grouped.items():
+            connection_note = (
+                "connection available"
+                if connection_by_company.get(company, False)
+                else "no known connection"
+            )
+            lines.append(f"{company} ({connection_note})")
+            for fit_level, postings in by_fit.items():
+                lines.append(f"  {fit_level.title()} fit:")
+                for posting in postings:
+                    new_label = "new in latest run" if posting.posting_url in new_posting_urls else "unsent"
+                    explanation = " ".join(posting.explanations) or "No explanation available."
+                    lines.extend(
+                        [
+                            f"  - {posting.title} ({new_label}, score {posting.score})",
+                            f"    Location: {posting.location}",
+                            f"    Link: {posting.posting_url}",
+                            f"    Fit explanation: {explanation}",
+                        ]
+                    )
+            lines.append("")
 
-    for company, by_fit in grouped.items():
-        connection_note = (
-            "connection available"
-            if connection_by_company.get(company, False)
-            else "no known connection"
-        )
-        lines.append(f"{company} ({connection_note})")
-        for fit_level, postings in by_fit.items():
-            lines.append(f"  {fit_level.title()} fit:")
-            for posting in postings:
-                new_label = "new in latest run" if posting.posting_url in new_posting_urls else "unsent"
-                explanation = " ".join(posting.explanations) or "No explanation available."
-                lines.extend(
-                    [
-                        f"  - {posting.title} ({new_label}, score {posting.score})",
-                        f"    Location: {posting.location}",
-                        f"    Link: {posting.posting_url}",
-                        f"    Fit explanation: {explanation}",
-                    ]
-                )
-        lines.append("")
+    lines.extend(render_collection_errors_section(collection_errors or [], markdown=False))
 
     return "\n".join(lines).strip() + "\n"
+
+
+def render_collection_errors_section(
+    collection_errors: list[CollectionError],
+    *,
+    markdown: bool,
+) -> list[str]:
+    """Render latest company job-site failures with practical repair details."""
+
+    heading = "## Company Job-Site Access Problems" if markdown else "Company job-site access problems:"
+    lines = ["", heading, ""]
+    if not collection_errors:
+        lines.extend(
+            [
+                "No company job-site access problems were recorded in the latest collection.",
+                "",
+            ]
+        )
+        return lines
+
+    lines.extend(
+        [
+            "These sources had problems during the latest collection. Open the job-site link, "
+            "then update the company's careers URL in the Companies tab if it has moved.",
+            "",
+        ]
+    )
+    for error in collection_errors:
+        if markdown:
+            lines.extend(
+                [
+                    f"- **{error.company}**",
+                    f"  - Job site: {error.source_url}",
+                    f"  - Problem: {error.message}",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    f"- {error.company}",
+                    f"  Job site: {error.source_url}",
+                    f"  Problem: {error.message}",
+                ]
+            )
+    lines.append("")
+    return lines
 
 
 def render_email_posting(
@@ -330,10 +389,22 @@ def group_by_company_and_fit(
     return dict(sorted(grouped.items()))
 
 
-def build_subject(postings: list[ScoredPosting]) -> str:
+def build_subject(
+    postings: list[ScoredPosting],
+    collection_errors: list[CollectionError] | None = None,
+) -> str:
+    problem_count = len(collection_errors or [])
+    problem_suffix = (
+        f"; {problem_count} job-site problem{'s' if problem_count != 1 else ''}"
+        if problem_count
+        else ""
+    )
     if not postings:
-        return "Weekly internship summary: no unsent new internships"
-    return f"Weekly internship summary: {len(postings)} new internships to review"
+        return f"Weekly internship summary: no unsent new internships{problem_suffix}"
+    return (
+        f"Weekly internship summary: {len(postings)} new internships to review"
+        f"{problem_suffix}"
+    )
 
 
 def count_new_postings(
