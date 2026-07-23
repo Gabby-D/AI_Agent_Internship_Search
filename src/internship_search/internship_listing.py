@@ -94,6 +94,8 @@ BLOG_URL_FRAGMENTS = (
 
 SPECIFIC_URL_FRAGMENTS = (
     "/job/",
+    "/job-detail/",
+    "/jobdetail/",
     "/jobs/",
     "/jobs/view/",
     "/opening/",
@@ -293,6 +295,10 @@ def has_specific_job_url(url: str) -> bool:
     path = parsed.path.rstrip("/")
 
     if "/job/" in url and path.count("/") >= 3:
+        return True
+    if "/job-detail/" in url and path.count("/") >= 4:
+        return True
+    if "/jobdetail/" in url and path.count("/") >= 2:
         return True
     if "/jobs/" in url and path.endswith("/jobs"):
         return False

@@ -27,6 +27,16 @@ def test_bain_program_page_is_excluded():
     )
 
 
+def test_bank_of_america_student_job_detail_is_a_specific_listing():
+    assert is_specific_internship_listing(
+        "Global Technology Summer Analyst Program - 2027",
+        (
+            "https://careers.bankofamerica.com/en-us/students/job-detail/"
+            "12345/global-technology-summer-analyst"
+        ),
+    )
+
+
 def test_bain_named_program_detail_pages_are_specific_listings():
     assert is_specific_internship_listing(
         "Associate Consultant Internship",

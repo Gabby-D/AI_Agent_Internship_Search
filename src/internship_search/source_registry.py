@@ -53,6 +53,32 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         ),
         collector="blackrock_jobs",
     ),
+    "crowdstrike": SourceMetadata(
+        careers_url=(
+            "https://crowdstrike.wd5.myworkdayjobs.com/crowdstrikecareers"
+        ),
+        source_type="company_careers_search",
+        notes="Complete CrowdStrike public Workday careers board.",
+        collector="workday_api",
+    ),
+    "berkeley research group": SourceMetadata(
+        careers_url=(
+            "https://thinkbrg.wd5.myworkdayjobs.com/"
+            "BRG_External_Career_Site"
+        ),
+        source_type="company_careers_search",
+        notes="Complete Berkeley Research Group public Workday careers board.",
+        collector="workday_api",
+    ),
+    "bayer": SourceMetadata(
+        careers_url=(
+            "https://jobs.bayer.com/search"
+            "?q=&sortColumn=referencedate&sortDirection=desc"
+        ),
+        source_type="company_careers_search",
+        notes="Complete Bayer public SuccessFactors jobs search.",
+        collector="bayer_successfactors",
+    ),
     "bain": SourceMetadata(
         careers_url="https://www.bain.com/careers/work-with-us/internships-programs/",
         source_type="company_careers_page",
@@ -204,12 +230,15 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         notes="Official Goldman Sachs programs and internships index.",
     ),
     "bank of america": SourceMetadata(
-        careers_url="https://careers.bankofamerica.com/en-us/students",
-        source_type="company_careers_page",
-        notes="Official Bank of America student opportunities and program links.",
-        alternate_careers_urls=(
-            "https://careers.bankofamerica.com/en-us/job-search",
+        careers_url=(
+            "https://careers.bankofamerica.com/en-us/students/job-search"
         ),
+        source_type="company_careers_search",
+        notes="Complete official Bank of America campus opportunities feed.",
+        alternate_careers_urls=(
+            "https://careers.bankofamerica.com/en-us/students",
+        ),
+        collector="bank_of_america_jobs",
     ),
     "northrop grumman": SourceMetadata(
         careers_url="https://jobs.northropgrumman.com/careers?query=intern",
@@ -232,6 +261,30 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         ),
         collector="phenom_api",
     ),
+    "bolt threads": SourceMetadata(
+        careers_url="https://boltthreads.com/",
+        source_type="company_status_page",
+        notes=(
+            "Official Bolt Threads site states that the company is no longer "
+            "operating; a successful scan therefore has no openings."
+        ),
+        collector="closed_company",
+    ),
+    "clif bar and company": SourceMetadata(
+        careers_url=(
+            "https://wd3.myworkdaysite.com/recruiting/mdlz/External"
+            "?q=Clif"
+        ),
+        source_type="company_careers_search",
+        notes=(
+            "Clif Bar recruiting is handled by parent company Mondelēz; scan "
+            "the complete public Workday result set for Clif."
+        ),
+        alternate_careers_urls=(
+            "https://www.clifbar.com/who-we-are/careers",
+        ),
+        collector="workday_api",
+    ),
     "dymo / newell brands": SourceMetadata(
         careers_url="https://jobs.newellbrands.com/?locale=en_US",
         source_type="company_careers_search",
@@ -241,12 +294,41 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         ),
     ),
     "deloitte": SourceMetadata(
-        careers_url="https://www.deloitte.com/us/en/careers/internships.html",
-        source_type="company_careers_page",
-        notes="Official Deloitte US student internships page.",
-        alternate_careers_urls=(
-            "https://www.deloitte.com/us/en/careers/student-careers.html",
+        careers_url=(
+            "https://apply.deloitte.com/en_US/careers/SearchJobs/feed/"
+            "?3_149_3=637&3_5_3=478&jobSort=relevancy&jobRecordsPerPage=1000"
         ),
+        source_type="company_careers_search",
+        notes=(
+            "Complete official Deloitte US intern search feed; job details "
+            "provide all listed locations and undergraduate eligibility text."
+        ),
+        alternate_careers_urls=(
+            "https://www.deloitte.com/us/en/careers/internships.html",
+        ),
+        collector="avature_rss",
+    ),
+    "earth mine / nokia": SourceMetadata(
+        careers_url="https://jobs.nokia.com/en/sites/CX_1/jobs",
+        source_type="company_careers_search",
+        notes=(
+            "Complete official Nokia Oracle Recruiting search, paged through "
+            "the public API and filtered locally for internships."
+        ),
+        alternate_careers_urls=(
+            "https://www.nokia.com/careers/our-locations/united-states/"
+            "students-and-graduates/",
+        ),
+        collector="oracle_recruiting_api",
+    ),
+    "everstream analytics": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/everstreamanalytics",
+        source_type="company_careers_search",
+        notes="Complete Everstream Analytics public Greenhouse job board.",
+        alternate_careers_urls=(
+            "https://www.everstream.ai/careers/",
+        ),
+        collector="greenhouse_api",
     ),
 }
 

@@ -5,9 +5,10 @@ from __future__ import annotations
 import html as html_module
 import json
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any, Callable
-from urllib.parse import parse_qs, quote, urljoin, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from internship_search.internship_listing import (
@@ -61,18 +62,43 @@ PAYCOR_JOB_RE = re.compile(
     r'(?P<location>.*?)</div>',
     re.IGNORECASE | re.DOTALL,
 )
+BAYER_RESULT_ROW_RE = re.compile(
+    r'<tr[^>]+class=["\'][^"\']*\bdata-row\b[^"\']*["\'][^>]*>'
+    r'(?P<row>.*?)</tr>',
+    re.IGNORECASE | re.DOTALL,
+)
+BAYER_JOB_RE = re.compile(
+    r'<a[^>]+href=["\'](?P<url>/job/[^"\']+)["\'][^>]*'
+    r'class=["\'][^"\']*\bjobTitle-link\b[^"\']*["\'][^>]*>'
+    r'(?P<title>.*?)</a>',
+    re.IGNORECASE | re.DOTALL,
+)
+BAYER_LOCATION_RE = re.compile(
+    r'<td[^>]+class=["\'][^"\']*\bcolLocation\b[^"\']*["\'][^>]*>'
+    r'(?P<location>.*?)</td>',
+    re.IGNORECASE | re.DOTALL,
+)
+BAYER_TOTAL_RE = re.compile(
+    r'class=["\']paginationLabel["\'][^>]*>.*?\bof\s*<b>(?P<total>[\d,]+)</b>',
+    re.IGNORECASE | re.DOTALL,
+)
 H1_RE = re.compile(r"<h1[^>]*>(.*?)</h1>", re.IGNORECASE | re.DOTALL)
 EXHAUSTIVE_API_STRATEGIES = {
+    "avature_rss",
     "ashby_api",
+    "bank_of_america_jobs",
+    "bayer_successfactors",
     "breezy_html",
     "consider_board",
     "greenhouse_api",
     "lever_api",
     "mckinsey_jobs",
+    "oracle_recruiting_api",
     "paycor_html",
     "phenom_api",
     "teamtailor_html",
     "workday_api",
+    "closed_company",
 }
 MAX_ATS_API_PAGES = 100
 
@@ -254,6 +280,16 @@ def run_collector_strategy(
         return collect_ycombinator_postings(source, html, collected_date)
     if strategy == "workday_api":
         return collect_workday_postings(source, collected_date)
+    if strategy == "avature_rss":
+        return collect_avature_rss_postings(source, html, collected_date)
+    if strategy == "oracle_recruiting_api":
+        return collect_oracle_recruiting_postings(source, html, collected_date)
+    if strategy == "closed_company":
+        return collect_closed_company_postings(source, html)
+    if strategy == "bank_of_america_jobs":
+        return collect_bank_of_america_postings(source, collected_date)
+    if strategy == "bayer_successfactors":
+        return collect_bayer_postings(source, html, collected_date)
     if strategy == "greenhouse_api":
         return collect_greenhouse_postings(source, collected_date)
     if strategy == "lever_api":
@@ -775,24 +811,43 @@ def collect_workday_postings(
     """Page through Workday's public CXS endpoint until every result is read."""
 
     parsed = urlparse(source.careers_url)
-    host_parts = parsed.netloc.split(".")
     path_parts = [part for part in parsed.path.split("/") if part]
-    if not host_parts or not path_parts:
+    if not path_parts:
         raise ValueError("Workday tenant and site could not be determined from the careers URL.")
-    tenant = host_parts[0]
-    site = next(
-        (part for part in path_parts if not re.fullmatch(r"[a-z]{2}-[A-Z]{2}", part)),
-        "",
-    )
+    if host_matches_domain(parsed.netloc, "myworkdaysite.com"):
+        try:
+            recruiting_index = path_parts.index("recruiting")
+            tenant = path_parts[recruiting_index + 1]
+            site = path_parts[recruiting_index + 2]
+        except (ValueError, IndexError) as error:
+            raise ValueError(
+                "Workday recruiting tenant and site could not be determined."
+            ) from error
+        posting_base_url = (
+            f"{parsed.scheme}://{parsed.netloc}/recruiting/{tenant}/{site}/"
+        )
+    else:
+        tenant = parsed.netloc.split(".")[0]
+        site = next(
+            (part for part in path_parts if not re.fullmatch(r"[a-z]{2}-[A-Z]{2}", part)),
+            "",
+        )
+        posting_base_url = source.careers_url.split("?", 1)[0]
     if not site:
         raise ValueError("Workday site could not be determined from the careers URL.")
 
     poster = post_json or post_public_json
     endpoint = f"{parsed.scheme}://{parsed.netloc}/wday/cxs/{tenant}/{site}/jobs"
+    query = parse_qs(parsed.query)
+    search_text = next(
+        iter(query.get("q") or query.get("keywords") or query.get("keyword") or [""]),
+        "",
+    )
     postings: list[JobPosting] = []
     seen_paths: set[str] = set()
     offset = 0
-    page_size = 100
+    # Workday's public CXS service rejects limits above 20 for some tenants.
+    page_size = 20
 
     exhausted = False
     for _ in range(MAX_ATS_API_PAGES):
@@ -802,7 +857,7 @@ def collect_workday_postings(
                 "appliedFacets": {},
                 "limit": page_size,
                 "offset": offset,
-                "searchText": "",
+                "searchText": search_text,
             },
         )
         if not isinstance(payload, dict) or not isinstance(payload.get("jobPostings"), list):
@@ -821,7 +876,9 @@ def collect_workday_postings(
             seen_paths.add(external_path)
             new_records += 1
             title = clean_title(str(record.get("title", "")))
-            posting_url = urljoin(source.careers_url, external_path)
+            posting_url = (
+                f"{posting_base_url.rstrip('/')}/{external_path.lstrip('/')}"
+            )
             if not is_specific_internship_listing(title, posting_url):
                 continue
             postings.append(
@@ -848,6 +905,385 @@ def collect_workday_postings(
             f"Workday pagination exceeded {MAX_ATS_API_PAGES} API pages."
         )
     return postings
+
+
+def collect_closed_company_postings(
+    source: CompanySource,
+    html: str,
+) -> list[JobPosting]:
+    """Treat a current official closure notice as a complete empty source."""
+
+    page_text = semantic_page_text(html).lower()
+    if "company is no longer operating" not in page_text:
+        raise ValueError("The official company closure notice was not found.")
+    return []
+
+
+def collect_avature_rss_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+    *,
+    fetch_page: FetchPage | None = None,
+) -> list[JobPosting]:
+    """Read every item from an Avature search RSS feed."""
+
+    try:
+        root = ET.fromstring(html)
+    except ET.ParseError as error:
+        raise ValueError("Avature RSS feed returned invalid XML.") from error
+
+    loader = fetch_page or fetch_public_page
+    postings: list[JobPosting] = []
+    for item in root.findall(".//item"):
+        title = clean_title(item.findtext("title") or "")
+        posting_url = (item.findtext("link") or item.findtext("guid") or "").strip()
+        if not posting_url or not is_specific_internship_listing(title, posting_url):
+            continue
+        detail_html = loader(posting_url)
+        location_block = re.search(
+            r'<div[^>]+class=["\'][^"\']*\barticle__header--locations\b'
+            r'[^"\']*["\'][^>]*>(.*?)</div>',
+            detail_html,
+            re.IGNORECASE | re.DOTALL,
+        )
+        locations = (
+            [
+                clean_title(semantic_page_text(value))
+                for value in re.findall(
+                    r"<p[^>]*>(.*?)</p>",
+                    location_block.group(1),
+                    re.IGNORECASE | re.DOTALL,
+                )
+            ]
+            if location_block
+            else []
+        )
+        postings.append(
+            JobPosting(
+                title=title,
+                company=source.company,
+                location="; ".join(location for location in locations if location)
+                or "Unknown",
+                posting_url=posting_url,
+                date_collected=collected_date,
+                source_url=source.careers_url,
+                eligibility_text=semantic_page_text(detail_html),
+            )
+        )
+    return postings
+
+
+def collect_oracle_recruiting_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+    *,
+    get_json: GetJson | None = None,
+) -> list[JobPosting]:
+    """Page through an Oracle Recruiting Cloud public career site search."""
+
+    api_base_match = re.search(
+        r'(https://[^"\'\s<>]+oraclecloud\.com(?::\d+)?)',
+        html,
+        re.IGNORECASE,
+    )
+    site_match = re.search(
+        r'data-sitenumber=["\']([^"\']+)["\']',
+        html,
+        re.IGNORECASE,
+    )
+    if not api_base_match or not site_match:
+        raise ValueError("Oracle Recruiting API host or career-site number was not found.")
+
+    api_base = api_base_match.group(1).rstrip("/")
+    site_number = site_match.group(1)
+    endpoint = (
+        f"{api_base}/hcmRestApi/resources/latest/"
+        "recruitingCEJobRequisitions"
+    )
+    loader = get_json or get_public_json
+    page_size = 25
+    offset = 0
+    postings: list[JobPosting] = []
+    seen_ids: set[str] = set()
+    exhausted = False
+
+    for _ in range(MAX_ATS_API_PAGES):
+        finder = (
+            f"findReqs;siteNumber={site_number},limit={page_size},"
+            f"offset={offset},keyword=intern"
+        )
+        query_string = urlencode(
+            {
+                "onlyData": "true",
+                "expand": "requisitionList",
+                "finder": finder,
+            }
+        )
+        request_url = f"{endpoint}?{query_string}"
+        payload = loader(request_url)
+        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+            raise ValueError("Oracle Recruiting API returned an unexpected response.")
+        search = next(
+            (item for item in payload["items"] if isinstance(item, dict)),
+            None,
+        )
+        if not search:
+            exhausted = True
+            break
+        requisition_list = search.get("requisitionList")
+        if isinstance(requisition_list, list):
+            records = requisition_list
+        elif isinstance(requisition_list, dict):
+            records = requisition_list.get("items")
+        else:
+            records = None
+        if not isinstance(records, list):
+            raise ValueError("Oracle Recruiting requisition list was missing.")
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            requisition_id = str(record.get("Id") or "").strip()
+            if not requisition_id or requisition_id in seen_ids:
+                continue
+            seen_ids.add(requisition_id)
+            title = clean_title(str(record.get("Title") or ""))
+            posting_url = (
+                f"{source.careers_url.split('?', 1)[0].rstrip('/')}/"
+                f"job/{quote(requisition_id)}"
+            )
+            if not is_specific_internship_listing(title, posting_url):
+                continue
+            postings.append(
+                JobPosting(
+                    title=title,
+                    company=source.company,
+                    location=clean_title(
+                        str(record.get("PrimaryLocation") or "Unknown")
+                    ),
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                    eligibility_text=semantic_page_text(
+                        " ".join(
+                            str(record.get(key) or "")
+                            for key in (
+                                "ShortDescriptionStr",
+                                "ExternalQualificationsStr",
+                                "ExternalResponsibilitiesStr",
+                                "StudyLevel",
+                            )
+                        )
+                    ),
+                )
+            )
+        total = int(search.get("TotalJobsCount", 0) or 0)
+        offset += len(records)
+        if (
+            not records
+            or (total and offset >= total)
+            or (not total and len(records) < page_size)
+        ):
+            exhausted = True
+            break
+
+    if not exhausted:
+        raise RuntimeError(
+            f"Oracle Recruiting pagination exceeded {MAX_ATS_API_PAGES} API pages."
+        )
+    return postings
+
+
+def collect_bank_of_america_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    get_json: GetJson | None = None,
+) -> list[JobPosting]:
+    """Read every opportunity from Bank of America's public campus jobs feed."""
+
+    if not host_matches_domain(
+        urlparse(source.careers_url).netloc,
+        "careers.bankofamerica.com",
+    ):
+        raise ValueError("Bank of America collector requires its official careers URL.")
+
+    getter = get_json or get_public_json
+    endpoint = "https://careers.bankofamerica.com/services/campusjobssearchservlet"
+    page_size = 100
+    offset = 0
+    postings: list[JobPosting] = []
+    seen_ids: set[str] = set()
+    exhausted = False
+
+    for _ in range(MAX_ATS_API_PAGES):
+        query = urlencode(
+            {
+                "start": offset,
+                "rows": page_size,
+                "search": "getAllJobs",
+            }
+        )
+        payload = getter(f"{endpoint}?{query}")
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobsList"), list):
+            raise ValueError("Bank of America campus feed returned an unexpected response.")
+        records = payload["jobsList"]
+        total = int(payload.get("totalMatches", 0) or 0)
+        if not records:
+            exhausted = True
+            break
+
+        new_records = 0
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            posting_id = str(record.get("jobRequisitionId") or "").strip()
+            relative_url = str(record.get("jcrURL") or "").strip()
+            posting_url = (
+                urljoin("https://careers.bankofamerica.com", relative_url)
+                if relative_url
+                else str(record.get("externalUrl") or "").strip()
+            )
+            identity = posting_id or posting_url
+            if not identity or identity in seen_ids:
+                continue
+            seen_ids.add(identity)
+            new_records += 1
+            title = clean_title(str(record.get("postingTitle") or ""))
+            program_type = clean_title(str(record.get("jobSubFamily") or ""))
+            if not mentions_internship(
+                " ".join(part for part in (title, program_type) if part),
+                posting_url,
+            ):
+                continue
+            postings.append(
+                JobPosting(
+                    title=title,
+                    company=source.company,
+                    location=clean_title(
+                        str(
+                            record.get("location")
+                            or record.get("primaryLocation")
+                            or record.get("locationString")
+                            or "Unknown"
+                        )
+                    ),
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                    eligibility_text=semantic_page_text(
+                        str(record.get("jobDescriptionExternal") or "")
+                    ),
+                )
+            )
+        offset += len(records)
+        if (
+            not new_records
+            or (total and offset >= total)
+            or (not total and len(records) < page_size)
+        ):
+            exhausted = True
+            break
+
+    if not exhausted:
+        raise RuntimeError(
+            f"Bank of America pagination exceeded {MAX_ATS_API_PAGES} API pages."
+        )
+    return postings
+
+
+def collect_bayer_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+    *,
+    fetch_page: FetchPage | None = None,
+) -> list[JobPosting]:
+    """Read every result page from Bayer's public SuccessFactors board."""
+
+    if not host_matches_domain(urlparse(source.careers_url).netloc, "jobs.bayer.com"):
+        raise ValueError("Bayer collector requires the official jobs.bayer.com URL.")
+
+    fetcher = fetch_page or fetch_public_page
+    page_size = 10
+    offset = 0
+    page_html = html
+    postings: list[JobPosting] = []
+    seen_urls: set[str] = set()
+    exhausted = False
+
+    for _ in range(MAX_ATS_API_PAGES):
+        if offset:
+            query = urlencode(
+                {
+                    "q": "",
+                    "sortColumn": "referencedate",
+                    "sortDirection": "desc",
+                    "startrow": offset,
+                }
+            )
+            page_html = fetcher(f"https://jobs.bayer.com/search?{query}")
+
+        total_match = BAYER_TOTAL_RE.search(page_html)
+        if not total_match:
+            raise ValueError("Bayer jobs page did not expose a result total.")
+        total = int(total_match.group("total").replace(",", ""))
+        rows = list(BAYER_RESULT_ROW_RE.finditer(page_html))
+        if not rows:
+            exhausted = offset >= total
+            break
+
+        new_rows = 0
+        for row_match in rows:
+            row = row_match.group("row")
+            job_match = BAYER_JOB_RE.search(row)
+            if not job_match:
+                continue
+            posting_url = urljoin(source.careers_url, html_module.unescape(job_match.group("url")))
+            if posting_url in seen_urls:
+                continue
+            seen_urls.add(posting_url)
+            new_rows += 1
+            title = clean_title(semantic_page_text(job_match.group("title")))
+            if not mentions_internship(title, posting_url):
+                continue
+            location_match = BAYER_LOCATION_RE.search(row)
+            location = (
+                clean_title(semantic_page_text(location_match.group("location")))
+                if location_match
+                else "Unknown"
+            )
+            postings.append(
+                JobPosting(
+                    title=title,
+                    company=source.company,
+                    location=location or "Unknown",
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                )
+            )
+
+        offset += len(rows)
+        if not new_rows or offset >= total or len(rows) < page_size:
+            exhausted = True
+            break
+
+    if not exhausted:
+        raise RuntimeError(
+            f"Bayer pagination exceeded {MAX_ATS_API_PAGES} result pages."
+        )
+    return postings
+
+
+def fetch_public_page(url: str) -> str:
+    request = Request(
+        url,
+        headers={"Accept": "text/html", "User-Agent": "internship-search/1.0"},
+    )
+    with urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8", errors="replace")
 
 
 def get_public_json(url: str) -> Any:

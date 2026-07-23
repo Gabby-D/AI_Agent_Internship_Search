@@ -99,7 +99,7 @@ def test_retired_or_stale_career_urls_are_replaced_with_current_official_pages()
     expected = {
         "Bank of America": "careers.bankofamerica.com/en-us/students",
         "Boeing": "jobs.boeing.com/category/internship-jobs",
-        "Deloitte": "deloitte.com/us/en/careers/internships",
+        "Deloitte": "apply.deloitte.com/en_US/careers/SearchJobs/feed",
         "DYMO / Newell Brands": "jobs.newellbrands.com",
         "Northrop Grumman": "jobs.northropgrumman.com/careers",
         "Pixar": "jobs.disneycareers.com/search-jobs",
@@ -128,6 +128,55 @@ def test_rtx_uses_accessible_phenom_bootstrap_page():
         "https://careers.rtx.com/global/en/campus?keywords=intern"
     )
     assert source.alternate_careers_urls == ()
+
+
+def test_new_recovered_sources_use_complete_official_collectors():
+    expected = {
+        "CrowdStrike": (
+            "crowdstrike.wd5.myworkdayjobs.com/crowdstrikecareers",
+            "workday_api",
+        ),
+        "Bank of America": (
+            "careers.bankofamerica.com/en-us/students/job-search",
+            "bank_of_america_jobs",
+        ),
+        "Bayer": ("jobs.bayer.com/search", "bayer_successfactors"),
+        "Berkeley Research Group": (
+            "thinkbrg.wd5.myworkdayjobs.com/BRG_External_Career_Site",
+            "workday_api",
+        ),
+    }
+
+    for company_name, (url_part, collector) in expected.items():
+        source = build_company_source(
+            Company(name=company_name, website="", has_connection=False)
+        )
+        assert url_part in source.careers_url
+        assert source.collector == collector
+        assert source.source_type == "company_careers_search"
+
+
+def test_additional_recovered_sources_use_complete_official_collectors():
+    expected = {
+        "Bolt Threads": ("boltthreads.com", "closed_company"),
+        "Clif Bar and Company": (
+            "wd3.myworkdaysite.com/recruiting/mdlz/External",
+            "workday_api",
+        ),
+        "Deloitte": ("apply.deloitte.com/en_US/careers/SearchJobs/feed", "avature_rss"),
+        "Earth Mine / Nokia": ("jobs.nokia.com/en/sites/CX_1/jobs", "oracle_recruiting_api"),
+        "Everstream Analytics": (
+            "job-boards.greenhouse.io/everstreamanalytics",
+            "greenhouse_api",
+        ),
+    }
+
+    for company_name, (url_part, collector) in expected.items():
+        source = build_company_source(
+            Company(name=company_name, website="", has_connection=False)
+        )
+        assert url_part in source.careers_url
+        assert source.collector == collector
 
 
 def test_build_company_source_falls_back_to_website_for_unknown_company():

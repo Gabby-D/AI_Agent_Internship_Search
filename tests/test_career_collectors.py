@@ -1,9 +1,15 @@
+from urllib.parse import parse_qs, urlparse
+
 from internship_search.career_collectors import (
     clear_consider_board_cache,
     collect_ashby_postings,
+    collect_avature_rss_postings,
+    collect_bank_of_america_postings,
+    collect_bayer_postings,
     collect_blackrock_postings,
     collect_breezy_postings,
     collect_consider_board_postings,
+    collect_closed_company_postings,
     collect_direct_job_url_posting,
     collect_greenhouse_postings,
     collect_json_ld_postings,
@@ -12,6 +18,7 @@ from internship_search.career_collectors import (
     collect_postings_for_source,
     collect_lever_postings,
     collect_mckinsey_postings,
+    collect_oracle_recruiting_postings,
     collect_paycor_postings,
     collect_phenom_postings,
     collect_workday_postings,
@@ -608,6 +615,7 @@ def test_collect_workday_postings_pages_until_total_is_reached():
     offsets: list[int] = []
 
     def post_json(url: str, payload: dict) -> dict:
+        assert payload["limit"] == 20
         offsets.append(payload["offset"])
         if payload["offset"] == 0:
             return {
@@ -646,6 +654,255 @@ def test_collect_workday_postings_pages_until_total_is_reached():
     assert [posting.title for posting in postings] == [
         "Summer Intern One",
         "Summer Intern Two",
+    ]
+
+
+def test_collect_workday_postings_supports_parent_company_recruiting_search():
+    source = make_source(
+        company="Clif Bar and Company",
+        careers_url=(
+            "https://wd3.myworkdaysite.com/recruiting/mdlz/External?q=Clif"
+        ),
+        collector="workday_api",
+    )
+    calls: list[tuple[str, dict]] = []
+
+    def post_json(url: str, payload: dict) -> dict:
+        calls.append((url, payload))
+        return {
+            "total": 1,
+            "jobPostings": [
+                {
+                    "title": "Clif Bar Brand Marketing Intern",
+                    "externalPath": "/job/Emeryville/Clif-Intern_R-1",
+                    "locationsText": "Emeryville, California",
+                }
+            ],
+        }
+
+    postings = collect_workday_postings(
+        source,
+        "2026-07-23",
+        post_json=post_json,
+    )
+
+    assert calls[0][0] == (
+        "https://wd3.myworkdaysite.com/wday/cxs/mdlz/External/jobs"
+    )
+    assert calls[0][1]["searchText"] == "Clif"
+    assert postings[0].posting_url == (
+        "https://wd3.myworkdaysite.com/recruiting/mdlz/External/"
+        "job/Emeryville/Clif-Intern_R-1"
+    )
+
+
+def test_collect_closed_company_requires_current_official_notice():
+    source = make_source(
+        company="Bolt Threads",
+        careers_url="https://boltthreads.com/",
+        collector="closed_company",
+    )
+
+    assert collect_closed_company_postings(
+        source,
+        "<main><p>The Company is no longer operating.</p></main>",
+    ) == []
+
+
+def test_collect_avature_rss_reads_every_item_and_detail_locations():
+    source = make_source(
+        company="Deloitte",
+        careers_url="https://apply.example.test/SearchJobs/feed/?type=intern",
+        collector="avature_rss",
+    )
+    feed = """<?xml version="1.0"?>
+    <rss><channel><item>
+      <title>Audit &amp; Assurance Intern</title>
+      <link>https://apply.example.test/JobDetail/123</link>
+    </item></channel></rss>
+    """
+    detail = """
+    <div class="article__header--locations">
+      <p>San Francisco, California, United States</p>
+      <p>Los Angeles, California, United States</p>
+    </div>
+    <p>Open to undergraduate students.</p>
+    """
+
+    postings = collect_avature_rss_postings(
+        source,
+        feed,
+        "2026-07-23",
+        fetch_page=lambda url: detail,
+    )
+
+    assert len(postings) == 1
+    assert "San Francisco" in postings[0].location
+    assert "undergraduate" in postings[0].eligibility_text.lower()
+
+
+def test_collect_oracle_recruiting_postings_pages_until_total_is_reached():
+    source = make_source(
+        company="Earth Mine / Nokia",
+        careers_url="https://jobs.nokia.com/en/sites/CX_1/jobs",
+        collector="oracle_recruiting_api",
+    )
+    html = """
+    <html data-sitenumber="CX_1">
+      <base href="https://example.fa.ocs.oraclecloud.com:443/">
+    </html>
+    """
+    offsets: list[int] = []
+
+    def get_json(url: str) -> dict:
+        query = parse_qs(urlparse(url).query)
+        finder = query["finder"][0]
+        offset = int(finder.split("offset=", 1)[1].split(",", 1)[0])
+        offsets.append(offset)
+        records = (
+            [
+                {
+                    "Id": "100",
+                    "Title": "Software Engineering Internship",
+                    "PrimaryLocation": "Israel",
+                    "StudyLevel": "Bachelor",
+                },
+                {
+                    "Id": "101",
+                    "Title": "Senior Software Engineer",
+                    "PrimaryLocation": "Finland",
+                },
+            ]
+            if offset == 0
+            else [
+                {
+                    "Id": "102",
+                    "Title": "Compliance Intern",
+                    "PrimaryLocation": "Sunnyvale, California",
+                }
+            ]
+        )
+        return {
+            "items": [
+                {
+                    "TotalJobsCount": 3,
+                    "requisitionList": records,
+                }
+            ]
+        }
+
+    postings = collect_oracle_recruiting_postings(
+        source,
+        html,
+        "2026-07-23",
+        get_json=get_json,
+    )
+
+    assert offsets == [0, 2]
+    assert [posting.title for posting in postings] == [
+        "Software Engineering Internship",
+        "Compliance Intern",
+    ]
+    assert postings[0].posting_url.endswith("/sites/CX_1/jobs/job/100")
+
+
+def test_collect_bank_of_america_postings_pages_through_campus_feed():
+    source = make_source(
+        company="Bank of America",
+        careers_url="https://careers.bankofamerica.com/en-us/students/job-search",
+        collector="bank_of_america_jobs",
+    )
+    starts: list[int] = []
+
+    def get_json(url: str) -> dict:
+        query = parse_qs(urlparse(url).query)
+        starts.append(int(query["start"][0]))
+        if starts[-1] == 0:
+            return {
+                "totalMatches": 2,
+                "jobsList": [
+                    {
+                        "postingTitle": "2027 Summer Analyst",
+                        "jobSubFamily": "Summer internship",
+                        "jobRequisitionId": "123",
+                        "jcrURL": "/en-us/students/job-detail/123/example",
+                        "location": "San Francisco, California",
+                        "jobDescriptionExternal": "<p>Undergraduate students.</p>",
+                    }
+                ],
+            }
+        return {
+            "totalMatches": 2,
+            "jobsList": [
+                {
+                    "postingTitle": "Full Time Analyst",
+                    "jobSubFamily": "Full time",
+                    "jobRequisitionId": "124",
+                    "jcrURL": "/en-us/students/job-detail/124/example",
+                    "location": "New York, New York",
+                }
+            ],
+        }
+
+    postings = collect_bank_of_america_postings(
+        source,
+        "2026-07-23",
+        get_json=get_json,
+    )
+
+    assert starts == [0, 1]
+    assert [posting.title for posting in postings] == ["2027 Summer Analyst"]
+    assert postings[0].location == "San Francisco, California"
+    assert "Undergraduate students" in postings[0].eligibility_text
+
+
+def test_collect_bayer_postings_reads_every_successfactors_page():
+    source = make_source(
+        company="Bayer",
+        careers_url=(
+            "https://jobs.bayer.com/search"
+            "?q=&sortColumn=referencedate&sortDirection=desc"
+        ),
+        collector="bayer_successfactors",
+    )
+
+    def page(title: str, path: str, location: str, start: int, end: int) -> str:
+        return f"""
+        <span class="paginationLabel">Results <b>{start} – {end}</b> of <b>11</b></span>
+        <tr class="data-row">
+          <td class="colTitle"><a href="{path}" class="jobTitle-link">{title}</a></td>
+          <td class="colLocation hidden-phone"><span>{location}</span></td>
+        </tr>
+        """
+
+    first_html = "".join(
+        page(
+            "Software Intern" if index == 0 else f"Engineer {index}",
+            f"/job/example-{index}/",
+            "Berkeley, CA",
+            1,
+            10,
+        )
+        for index in range(10)
+    )
+    fetched: list[str] = []
+
+    def fetch_page(url: str) -> str:
+        fetched.append(url)
+        return page("Research Internship", "/job/example-10/", "Berlin, DE", 11, 11)
+
+    postings = collect_bayer_postings(
+        source,
+        first_html,
+        "2026-07-23",
+        fetch_page=fetch_page,
+    )
+
+    assert len(fetched) == 1
+    assert "startrow=10" in fetched[0]
+    assert [posting.title for posting in postings] == [
+        "Software Intern",
+        "Research Internship",
     ]
 
 

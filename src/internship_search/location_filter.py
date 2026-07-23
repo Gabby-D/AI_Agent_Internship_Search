@@ -56,7 +56,17 @@ def matches_allowed_location(
 
     text = normalize_location_text(location)
     if contains_marker(text, FLEXIBLE_LOCATION_MARKERS):
-        text = normalize_location_text(location, title or "", details or "")
+        preferred_markers = load_location_markers(preferences_path)
+        detailed_text = normalize_location_text(location, title or "", details or "")
+        if contains_marker(detailed_text, preferred_markers):
+            return True
+        # Descriptions commonly mention an "online application" or remote-work
+        # policies unrelated to the role's location. Only structured location
+        # and title fields may establish remote eligibility.
+        return _location_text_is_allowed(
+            normalize_location_text(location, title or ""),
+            preferred_markers,
+        )
     return _location_text_is_allowed(
         text,
         load_location_markers(preferences_path),
@@ -91,6 +101,8 @@ def contains_marker(text: str, markers: tuple[str, ...]) -> bool:
 def summarize_allowed_locations(
     location: str,
     preferences_path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH,
+    *,
+    details: str | None = None,
 ) -> str:
     """Show matching location entries without listing every available office."""
 
@@ -99,6 +111,13 @@ def summarize_allowed_locations(
         return location
 
     markers = load_location_markers(preferences_path)
+    if contains_marker(normalize_location_text(original), FLEXIBLE_LOCATION_MARKERS):
+        detail_text = normalize_location_text(details or "")
+        detail_matches = [
+            marker for marker in markers if marker and marker in detail_text
+        ]
+        if detail_matches:
+            return " | ".join(dict.fromkeys(marker.title() for marker in detail_matches)) + " | â€¦"
     parts = [
         part.strip(" \t\r\n-–—•")
         for part in re.split(r"\s*(?:\||;|\r?\n|•)\s*", original)

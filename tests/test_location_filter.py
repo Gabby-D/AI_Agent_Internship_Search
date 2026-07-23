@@ -57,6 +57,12 @@ def test_flexible_location_uses_structured_job_details(tmp_path):
         preferences_path=preferences,
         details="Teams are available only in Other City.",
     )
+    assert not matches_allowed_location(
+        "Multiple Locations",
+        "Summer Analyst Program",
+        preferences_path=preferences,
+        details="Submit an online application for teams in Other City.",
+    )
 
 
 def test_summarize_allowed_locations_hides_non_preferred_entries(tmp_path):
@@ -87,3 +93,13 @@ def test_summarize_allowed_locations_leaves_single_location_unchanged(tmp_path):
         "Preferred City, CA",
         preferences_path=preferences,
     ) == "Preferred City, CA"
+
+
+def test_summarize_flexible_location_uses_only_preferred_detail_locations(tmp_path):
+    preferences = write_preferences(tmp_path)
+
+    assert summarize_allowed_locations(
+        "Multiple Locations",
+        preferences_path=preferences,
+        details="Available in Other City, Preferred City, and Another City.",
+    ) == "Preferred City | â€¦"

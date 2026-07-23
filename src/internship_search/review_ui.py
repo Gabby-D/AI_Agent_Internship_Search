@@ -946,7 +946,7 @@ def render_review_page() -> str:
           </div>
           
           <table class="clean" id="company-editor-table">
-            <thead><tr><th>Company</th><th>Career page</th><th>Know someone?</th><th></th></tr></thead>
+            <thead><tr><th>Company</th><th>Career page</th><th>Latest scan</th><th>Know someone?</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
           
@@ -1017,9 +1017,17 @@ def render_review_page() -> str:
 
     function companyRow(company) {
       const showNameInput = company.has_connection ? 'block' : 'none';
+      let scanStatus = '<span class="empty">Not scanned yet</span>';
+      if (company.source_issue) {
+        scanStatus = `<span class="error" title="${escapeHtml(company.source_issue)}">Source issue</span>`;
+      } else if (company.has_scan_results) {
+        const count = Number(company.internships_found || 0);
+        scanStatus = `<span class="message">Working</span><div class="empty" style="padding: 3px 0 0;">${count} internship${count === 1 ? "" : "s"} found</div>`;
+      }
       return `<tr>
         <td><input data-field="name" value="${escapeHtml(company.name || "")}" aria-label="Company name"></td>
         <td><input data-field="website" value="${escapeHtml(company.careers_url || company.website || "")}" aria-label="Career page URL"></td>
+        <td>${scanStatus}</td>
         <td>
           <div style="display: flex; flex-direction: column; gap: 4px;">
             <label style="display: flex; align-items: center; gap: 6px; font-weight: normal; font-size: 13px;">

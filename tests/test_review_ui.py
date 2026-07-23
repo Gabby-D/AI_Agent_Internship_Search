@@ -236,6 +236,9 @@ def test_load_review_dashboard_includes_scores_and_review_status(tmp_path):
             "careers_url": "https://example.com/careers",
             "has_connection": True,
             "connection_name": "",
+            "internships_found": 0,
+            "source_issue": "",
+            "has_scan_results": False,
         }
     ]
 
@@ -269,6 +272,9 @@ def test_load_review_dashboard_uses_live_company_connection_status(tmp_path):
             "careers_url": "https://example.com/careers",
             "has_connection": False,
             "connection_name": "",
+            "internships_found": 0,
+            "source_issue": "",
+            "has_scan_results": False,
         },
         {
             "name": "New Co",
@@ -276,8 +282,39 @@ def test_load_review_dashboard_uses_live_company_connection_status(tmp_path):
             "careers_url": "https://new.example",
             "has_connection": True,
             "connection_name": "",
+            "internships_found": 0,
+            "source_issue": "",
+            "has_scan_results": False,
         },
     ]
+
+
+def test_load_review_dashboard_includes_latest_company_scan_status(tmp_path):
+    data_dir = tmp_path / "data"
+    private_dir = tmp_path / "private"
+    write_private_inputs(private_dir)
+    write_source_registry([make_source()], data_dir / "source_registry.json")
+    write_postings_jsonl(
+        [make_job_posting("https://example.com/jobs/1")],
+        data_dir / "postings.jsonl",
+    )
+    (data_dir / "collection_errors.jsonl").write_text(
+        json.dumps(
+            {
+                "company": "Connected Co",
+                "source_url": "https://example.com/careers",
+                "message": "Public source timed out.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    company = load_review_dashboard(data_dir, private_dir)["monitored_companies"][0]
+
+    assert company["internships_found"] == 1
+    assert company["source_issue"] == "Public source timed out."
+    assert company["has_scan_results"] is True
 
 
 def make_job_posting(url: str = "https://example.com/jobs/1") -> JobPosting:

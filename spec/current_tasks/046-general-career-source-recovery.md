@@ -90,6 +90,182 @@ to other affected companies one at a time.
   matching undergraduate and private location requirements, excluded the
   graduate-engineer role, and reported no source errors.
 
+### CrowdStrike
+
+- CrowdStrike's official careers board uses Workday.
+- The earlier HTTP 400 was caused by requesting 100 records per page; this
+  Workday tenant accepts at most 20. The reusable Workday collector now uses
+  the supported page size and continues until the reported total is reached.
+- Live validation collected one current internship record and reported no
+  source errors.
+
+### Bank of America
+
+- The official student job-search page exposes a structured public campus-jobs
+  feed with a total count, program type, description, location, and stable job
+  URL.
+- A reusable collector pages that feed to completion and identifies
+  internships from both the title and structured program type.
+- Live validation read all 71 campus records, identified 65 internship or
+  summer-analyst records for downstream location and undergraduate filtering,
+  and reported no source errors.
+
+### Bayer
+
+- Bayer's official jobs portal is a server-rendered SAP SuccessFactors board.
+- A reusable bounded paginator reads each 10-record result page, uses the
+  portal's reported total as its stopping condition, and extracts structured
+  job rows without following unrelated pagination links.
+- Live validation read all 678 current jobs across 68 pages, identified five
+  internship titles for downstream filtering, and reported no source errors.
+
+### Berkeley Research Group
+
+- BRG's official careers page links to its public Workday board.
+- The repaired reusable Workday pagination applies without a company-specific
+  scraper.
+- Live validation collected three current internship records and reported no
+  source errors.
+
+### Bolt Threads
+
+- The current official site states that the company is no longer operating.
+- A reusable closure-page collector verifies that statement before treating
+  the source as a successful scan with zero openings. If the notice changes or
+  disappears, the scan reports an issue rather than assuming the company is
+  still closed.
+
+### Clif Bar and Company
+
+- Clif Bar's official careers page routes recruiting to parent company
+  Mondelēz and its public Workday site.
+- The Workday collector now supports the `myworkdaysite.com/recruiting`
+  URL shape and optional company search text, then pages the complete Clif
+  result set.
+- Live validation found no current Clif internship titles and no source error.
+
+### Deloitte
+
+- Deloitte's official US internship search is hosted on Avature and exposes a
+  complete filtered RSS feed.
+- A reusable Avature feed collector reads every item and retrieves each job
+  detail page for its full location list and eligibility text.
+- The specific-listing classifier now recognizes Avature `/JobDetail/` URLs.
+- Live validation found one current US internship record, including San
+  Francisco among its listed locations, and no source error.
+
+### Earth Mine / Nokia
+
+- Nokia's official jobs portal uses Oracle Recruiting Cloud and exposes the
+  API host and career-site number in its public page.
+- A reusable Oracle collector requests 25 records at a time, advances offsets
+  until the API's total is reached, and filters internship/co-op titles
+  locally.
+- Live validation paged all 219 keyword matches, identified 17 internship or
+  co-op records for downstream filtering, and reported no source error.
+
+### Everstream Analytics
+
+- Everstream's official careers page identifies its public Greenhouse board.
+- Source configuration now uses that board directly with the existing
+  complete Greenhouse collector.
+- Live validation found one current internship record and no source error.
+
+## Handoff Snapshot (2026-07-23)
+
+This section is the continuation point for another AI agent. The work described
+above is implemented on `main`; use the commit containing this spec as the safe
+Git checkpoint.
+
+### Verified Current State
+
+- The standard package test suite passes: `274 passed`.
+- The one-click Windows executable was rebuilt from the current source and
+  started successfully at `http://127.0.0.1:8765/`.
+- The Companies page includes a `Latest scan` column. It distinguishes a
+  working source (including a valid zero-opening result) from a source issue.
+- The latest full local workflow registered 116 companies, collected 241
+  internship candidates, retained 18 after preference filtering, and recorded
+  28 source-error entries. Generated results remain local and Git-ignored.
+- No email was sent during the verification run.
+- No private input, generated output, credential, resume, email address,
+  personal location, or detailed internship preference belongs in this spec or
+  any tracked file.
+
+### Latest Results for the Five Most Recent Sources
+
+| Company | Complete source | Collected | Relevant after private filters | Source issue |
+| --- | --- | ---: | ---: | --- |
+| Bolt Threads | Verified official closure page | 0 | 0 | No |
+| Clif Bar and Company | Mondelēz Workday search for Clif | 0 | 0 | No |
+| Deloitte | Filtered Avature RSS plus job details | 1 | 1 | No |
+| Earth Mine / Nokia | Oracle Recruiting API with complete offsets | 16 unique | 0 | No |
+| Everstream Analytics | Greenhouse public board API | 1 | 0 | No |
+
+The Deloitte record is relevant because its detail page includes a target
+location. Nokia's records did not match the user's private location
+preferences. Everstream's record is broadly US-remote and is intentionally not
+treated as a target-location match by the current rules.
+
+### Implementation Map
+
+- `src/internship_search/career_collectors.py`: reusable Workday, Phenom,
+  Greenhouse, Avature RSS, Oracle Recruiting, Paycor, Bank of America, Bayer,
+  and closure-page collection behavior.
+- `src/internship_search/source_registry.py`: official recruiting source URLs
+  and collector selection for recovered companies.
+- `src/internship_search/internship_listing.py`: specific internship URL
+  classification, including Avature `/JobDetail/` paths.
+- `src/internship_search/location_filter.py`: private target-location matching
+  and flexible/multi-location handling.
+- `src/internship_search/review_state.py` and `review_ui.py`: source status and
+  internship counts shown on the Companies page.
+- `tests/test_career_collectors.py`, `test_source_registry.py`,
+  `test_internship_listing.py`, `test_location_filter.py`, and
+  `test_review_ui.py`: regression coverage for the above.
+
+### First Recommended Follow-up
+
+Revisit RTX first. Its focused Phenom validation succeeded with 10 records, but
+the latest full unattended workflow later recorded:
+
+`RTX: phenom_api failed: HTTP Error 403: Forbidden`
+
+Treat this as an intermittent upstream-access problem until reproduced. Check
+whether the public campus bootstrap page or widget endpoint changed, and keep
+the solution at the Phenom/platform level if possible. Do not add CAPTCHA
+bypasses or require browser automation for scheduled runs.
+
+After RTX, continue resolving the remaining companies marked `Source issue` in
+the Companies page one at a time using the Decision Order above. The latest run
+included issues for Zipline, Wellfound startup, Symbio, Profusa, Pottery Barn,
+Novi Connect, Upside Foods, PowerBar, Meyer Sound, DYMO / Newell Brands,
+Annie's Homegrown / General Mills, Acme Bread Company, Stellarus, PayPal,
+Lemonade, Pixar, Levi's, Ripple, Farallon Capital Management, Goldman Sachs,
+JPMorgan Chase, Morgan Stanley, Wiz, Northrop Grumman, RTX, and General
+Dynamics. Re-run the source before assuming a recorded network error is still
+current.
+
+### Verification and Local App Commands
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -c "from internship_search.cli import main; raise SystemExit(main(['run-scheduled-collection', '--skip-email']))"
+powershell -ExecutionPolicy Bypass -File config\build_windows_app.ps1 -Clean
+```
+
+The executable is `app/Internship Search.exe`. It reads ignored local data from
+`private/` and `data/`; rebuilding it must not embed or replace those files.
+Before a clean rebuild, stop any running `Internship Search.exe` processes that
+still lock the existing executable.
+
+### Known Non-blocking Issue
+
+Some older generated location summaries can display a mojibake ellipsis
+(`â€¦`) rather than `…`. This was observed in existing rows during visual
+verification and was not part of the source-recovery changes. Diagnose the
+generated-data encoding path separately without changing private preferences.
+
 ## Acceptance Criteria
 
 - RTX collection does not depend on the Cloudflare-blocked search-result HTML.

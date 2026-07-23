@@ -15,6 +15,7 @@ from internship_search.location_filter import (
     matches_allowed_location,
     summarize_allowed_locations,
 )
+from internship_search.monitored_companies import read_collection_errors_jsonl
 from internship_search.posting_filter import read_filtered_postings_jsonl
 from internship_search.posting_history import inactive_posting_urls, read_history
 from internship_search.private_inputs import Preferences, load_private_inputs
@@ -99,6 +100,17 @@ def load_review_dashboard(
         for source in sources
     }
     careers_url_by_company = {source.company: source.careers_url for source in sources}
+    collected_postings_path = data_path / "postings.jsonl"
+    collection_errors_path = data_path / "collection_errors.jsonl"
+    has_scan_results = collected_postings_path.exists() or collection_errors_path.exists()
+    internship_counts: dict[str, int] = {}
+    for posting in read_postings_jsonl(collected_postings_path):
+        company_key = normalize_company_name(posting.company)
+        internship_counts[company_key] = internship_counts.get(company_key, 0) + 1
+    source_issues = {
+        normalize_company_name(error.company): error.message
+        for error in read_collection_errors_jsonl(collection_errors_path)
+    }
     connection_by_company.update(
         {
             company.name: company.has_connection
@@ -143,13 +155,21 @@ def load_review_dashboard(
 
     location_preferences_path = private_path / "location_preferences.txt"
     postings: list[ReviewablePosting] = []
-    for filtered in read_filtered_postings_jsonl(data_path / "filtered_postings.jsonl"):
+    source_filtered_postings = read_filtered_postings_jsonl(
+        data_path / "filtered_postings.jsonl"
+    )
+    eligibility_by_url = {
+        posting.posting_url: posting.eligibility_text
+        for posting in source_filtered_postings
+    }
+    for filtered in source_filtered_postings:
         if not filtered.included:
             continue
         if not posting_matches_location_policy(
             filtered.location,
             filtered.title,
             preferences_path=location_preferences_path,
+            details=filtered.eligibility_text,
         ):
             continue
         scored = scored_by_url.get(filtered.posting_url)
@@ -182,6 +202,7 @@ def load_review_dashboard(
         postings,
         filters,
         preferences_path=location_preferences_path,
+        enforce_location=False,
     )
     companies = sorted({posting.company for posting in postings})
 
@@ -191,6 +212,7 @@ def load_review_dashboard(
         display_location = summarize_allowed_locations(
             posting.location,
             preferences_path=location_preferences_path,
+            details=eligibility_by_url.get(posting.posting_url, ""),
         )
         payload["location"] = display_location
         if display_location != posting.location:
@@ -218,6 +240,15 @@ def load_review_dashboard(
                 "careers_url": careers_url_by_company.get(company.name, company.website),
                 "has_connection": company.has_connection,
                 "connection_name": company.connection_name,
+                "internships_found": internship_counts.get(
+                    normalize_company_name(company.name),
+                    0,
+                ),
+                "source_issue": source_issues.get(
+                    normalize_company_name(company.name),
+                    "",
+                ),
+                "has_scan_results": has_scan_results,
             }
             for company in private_inputs.companies
         ],
@@ -414,6 +445,7 @@ def filter_review_postings(
     filters: ReviewFilters | None = None,
     *,
     preferences_path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH,
+    enforce_location: bool = True,
 ) -> list[ReviewablePosting]:
     active = filters or ReviewFilters()
     filtered: list[ReviewablePosting] = []
@@ -432,7 +464,7 @@ def filter_review_postings(
                 continue
             if active.included == "excluded" and posting.included:
                 continue
-        if not matches_location_filter(
+        if enforce_location and not matches_location_filter(
             posting,
             active.location,
             preferences_path=preferences_path,
@@ -476,8 +508,14 @@ def posting_matches_location_policy(
     title: str,
     *,
     preferences_path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH,
+    details: str = "",
 ) -> bool:
-    return matches_allowed_location(location, title, preferences_path=preferences_path)
+    return matches_allowed_location(
+        location,
+        title,
+        preferences_path=preferences_path,
+        details=details,
+    )
 
 
 def build_review_summary(postings: list[ReviewablePosting]) -> dict[str, int]:
