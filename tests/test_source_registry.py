@@ -60,7 +60,9 @@ def test_known_companies_use_complete_public_ats_boards():
     expected = {
         "Ansa Bio": "greenhouse.io/ansabiotechnologies",
         "Applied Intuition": "ashbyhq.com/applied",
+        "Ayar Labs": "recruitingbypaycor.com/career/CareerHome.action",
         "Flexport": "greenhouse.io/flexport",
+        "Form Energy": "ashbyhq.com/formenergy",
         "Khan Academy": "greenhouse.io/khanacademy",
         "KoBold Metals": "greenhouse.io/koboldmetals",
         "Palantir": "lever.co/palantir",
@@ -81,6 +83,16 @@ def test_known_companies_use_complete_public_ats_boards():
         )
         assert expected_url_part in source.careers_url
         assert source.source_type == "company_careers_search"
+
+
+def test_ayar_labs_uses_complete_paycor_collector():
+    source = build_company_source(
+        Company(name="Ayar Labs", website="https://ayarlabs.com", has_connection=False)
+    )
+
+    assert source.collector == "paycor_html"
+    assert "clientId=" in source.careers_url
+    assert source.alternate_careers_urls == ()
 
 
 def test_retired_or_stale_career_urls_are_replaced_with_current_official_pages():

@@ -144,11 +144,19 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         source_type="company_careers_search",
         notes="Complete SpaceX public Greenhouse job board.",
     ),
-    "form energy": SourceMetadata(
-        careers_url="https://formenergy.com/careers/open-jobs/",
+    "ayar labs": SourceMetadata(
+        careers_url=(
+            "https://recruitingbypaycor.com/career/CareerHome.action"
+            "?clientId=8a7883c66a3387ef016a468ba9d104e6"
+        ),
         source_type="company_careers_search",
-        notes="Form Energy's official open-jobs page.",
-        alternate_careers_urls=("https://formenergy.com/careers/",),
+        notes="Complete Ayar Labs public Paycor careers board.",
+        collector="paycor_html",
+    ),
+    "form energy": SourceMetadata(
+        careers_url="https://jobs.ashbyhq.com/formenergy",
+        source_type="company_careers_search",
+        notes="Complete Form Energy public Ashby job board.",
     ),
     "kobold metals": SourceMetadata(
         careers_url="https://job-boards.greenhouse.io/koboldmetals",

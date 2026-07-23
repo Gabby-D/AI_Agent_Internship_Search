@@ -12,6 +12,7 @@ from internship_search.career_collectors import (
     collect_postings_for_source,
     collect_lever_postings,
     collect_mckinsey_postings,
+    collect_paycor_postings,
     collect_phenom_postings,
     collect_workday_postings,
     collect_ycombinator_postings,
@@ -662,6 +663,51 @@ def test_complete_public_api_with_no_internships_is_not_an_access_failure(monkey
     outcome = collect_postings_for_source(source, "<html></html>", "2026-07-22")
 
     assert outcome.postings == []
+    assert outcome.complete is True
+    assert outcome.warning == ""
+
+
+def test_collect_paycor_postings_reads_complete_public_board():
+    source = make_source(
+        company="Example Co",
+        careers_url=(
+            "https://recruitingbypaycor.com/career/CareerHome.action"
+            "?clientId=example123456789"
+        ),
+        collector="paycor_html",
+    )
+    html = """
+    <div class="gnewtonCareerGroupRowClass">
+      <div class="gnewtonCareerGroupJobTitleClass">
+        <a href="https://recruitingbypaycor.com/career/JobIntroduction.action?clientId=example123456789&amp;id=intern-1"
+           ns-qa="2027 Silicon Engineering Intern">
+          2027 Silicon Engineering Intern
+        </a>
+      </div>
+      <div class="gnewtonCareerGroupJobDescriptionClass">
+        San Jose, CA
+      </div>
+    </div>
+    <div class="gnewtonCareerGroupRowClass">
+      <div class="gnewtonCareerGroupJobTitleClass">
+        <a href="https://recruitingbypaycor.com/career/JobIntroduction.action?clientId=example123456789&amp;id=senior-1"
+           ns-qa="Senior Silicon Engineer">
+          Senior Silicon Engineer
+        </a>
+      </div>
+      <div class="gnewtonCareerGroupJobDescriptionClass">
+        San Jose, CA
+      </div>
+    </div>
+    """
+
+    postings = collect_paycor_postings(source, html, "2026-07-23")
+    outcome = collect_postings_for_source(source, html, "2026-07-23")
+
+    assert len(postings) == 1
+    assert postings[0].title == "2027 Silicon Engineering Intern"
+    assert postings[0].location == "San Jose, CA"
+    assert "id=intern-1" in postings[0].posting_url
     assert outcome.complete is True
     assert outcome.warning == ""
 

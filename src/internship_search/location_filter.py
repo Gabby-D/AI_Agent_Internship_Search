@@ -17,6 +17,12 @@ REMOTE_MARKERS = (
     "distributed",
     "work remotely",
 )
+FLEXIBLE_LOCATION_MARKERS = (
+    "any site",
+    "flexible",
+    "multiple locations",
+    "various locations",
+)
 
 DEFAULT_LOCATION_PREFERENCES_PATH = Path("private/location_preferences.txt")
 LOCATION_FILTER_REASON = "Excluded because location does not match the user's preference of location."
@@ -35,18 +41,25 @@ def matches_allowed_location(
     location: str,
     title: str | None = None,
     preferences_path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH,
+    *,
+    details: str | None = None,
 ) -> bool:
     """Return True when a location matches private preferences or is fully remote."""
 
     if is_unknown_location(location):
-        if not title or not title.strip():
+        if not any(part and part.strip() for part in (title, details)):
             return False
         return _location_text_is_allowed(
-            normalize_location_text(title), load_location_markers(preferences_path)
+            normalize_location_text(title or "", details or ""),
+            load_location_markers(preferences_path),
         )
 
+    text = normalize_location_text(location)
+    if contains_marker(text, FLEXIBLE_LOCATION_MARKERS):
+        text = normalize_location_text(location, title or "", details or "")
     return _location_text_is_allowed(
-        normalize_location_text(location), load_location_markers(preferences_path)
+        text,
+        load_location_markers(preferences_path),
     )
 
 

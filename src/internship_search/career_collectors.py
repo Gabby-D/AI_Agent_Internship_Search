@@ -53,6 +53,14 @@ MCKINSEY_JOBS_API = (
     "https://gateway.mckinsey.com/apigw-x0cceuow60/v1/api/jobs/search"
 )
 PHENOM_REFNUM_RE = re.compile(r'"refNum"\s*:\s*"([^"]+)"')
+PAYCOR_JOB_RE = re.compile(
+    r'<a[^>]+href=["\'](?P<url>https://recruitingbypaycor\.com/'
+    r'career/JobIntroduction\.action\?[^"\']+)["\'][^>]+'
+    r'ns-qa=["\'](?P<title>[^"\']+)["\'][^>]*>.*?</a>\s*</div>\s*'
+    r'<div[^>]+class=["\']gnewtonCareerGroupJobDescriptionClass["\'][^>]*>'
+    r'(?P<location>.*?)</div>',
+    re.IGNORECASE | re.DOTALL,
+)
 H1_RE = re.compile(r"<h1[^>]*>(.*?)</h1>", re.IGNORECASE | re.DOTALL)
 EXHAUSTIVE_API_STRATEGIES = {
     "ashby_api",
@@ -61,6 +69,7 @@ EXHAUSTIVE_API_STRATEGIES = {
     "greenhouse_api",
     "lever_api",
     "mckinsey_jobs",
+    "paycor_html",
     "phenom_api",
     "teamtailor_html",
     "workday_api",
@@ -203,6 +212,8 @@ def resolve_collector_strategies(source: CompanySource) -> tuple[str, ...]:
             "semantic_detail",
             "generic_links",
         )
+    if host_matches_domain(careers_host, "recruitingbypaycor.com"):
+        return ("paycor_html",)
 
     if normalized_name == "blackrock" or "careers.blackrock.com" in careers_host:
         return ("blackrock_jobs", "json_ld", "embedded_json", "semantic_detail")
@@ -257,6 +268,8 @@ def run_collector_strategy(
         return collect_mckinsey_postings(source, collected_date)
     if strategy == "phenom_api":
         return collect_phenom_postings(source, html, collected_date)
+    if strategy == "paycor_html":
+        return collect_paycor_postings(source, html, collected_date)
     if strategy == "direct_job_url":
         return collect_direct_job_url_posting(source, collected_date)
     if strategy == "semantic_detail":
@@ -286,6 +299,44 @@ def collect_breezy_postings(
         html=html,
         collected_date=collected_date,
     )
+
+
+def collect_paycor_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+) -> list[JobPosting]:
+    """Read every current posting from a public Paycor CareerHome page."""
+
+    if not host_matches_domain(
+        urlparse(source.careers_url).netloc,
+        "recruitingbypaycor.com",
+    ):
+        raise ValueError("Paycor collector requires a recruitingbypaycor.com URL.")
+    if not parse_qs(urlparse(source.careers_url).query).get("clientId"):
+        raise ValueError("Paycor collector requires a clientId query parameter.")
+
+    postings: list[JobPosting] = []
+    seen_urls: set[str] = set()
+    for match in PAYCOR_JOB_RE.finditer(html):
+        title = clean_title(html_module.unescape(match.group("title")))
+        posting_url = html_module.unescape(match.group("url"))
+        if posting_url in seen_urls:
+            continue
+        seen_urls.add(posting_url)
+        if not is_specific_internship_listing(title, posting_url):
+            continue
+        postings.append(
+            JobPosting(
+                title=title,
+                company=source.company,
+                location=semantic_page_text(match.group("location")) or "Unknown",
+                posting_url=posting_url,
+                date_collected=collected_date,
+                source_url=source.careers_url,
+            )
+        )
+    return postings
 
 
 def collect_phenom_postings(

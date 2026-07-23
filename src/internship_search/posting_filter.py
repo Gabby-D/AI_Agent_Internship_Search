@@ -60,6 +60,14 @@ GRADUATE_ONLY_PATTERNS = (
     re.compile(r"\blaw (?:school|student|students)\b", re.IGNORECASE),
     re.compile(r"\bmedical (?:school|student|students)\b", re.IGNORECASE),
 )
+STRICT_GRADUATE_ONLY_PATTERNS = (
+    re.compile(r"\bgraduate engineer\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:must be |currently )?enrolled in (?:an? )?graduate "
+        r"(?:degree )?program\b",
+        re.IGNORECASE,
+    ),
+)
 
 GRADUATE_ONLY_REASON = (
     "Excluded because the role is intended for graduate or advanced-degree students, "
@@ -165,7 +173,11 @@ def evaluate_posting(posting: JobPosting) -> FilteredPosting:
         if is_graduate_only_posting(posting):
             reasons.append(GRADUATE_ONLY_REASON)
             return to_filtered_posting(posting=posting, included=False, reasons=reasons)
-        if not matches_allowed_location(posting.location, posting.title):
+        if not matches_allowed_location(
+            posting.location,
+            posting.title,
+            details=posting.eligibility_text,
+        ):
             reasons.append(LOCATION_FILTER_REASON)
             return to_filtered_posting(posting=posting, included=False, reasons=reasons)
         target_year_matches = sorted(term for term in TARGET_YEAR_TERMS if term in searchable)
@@ -191,6 +203,8 @@ def is_graduate_only_posting(posting: JobPosting) -> bool:
     """Return True for advanced-degree roles that are not open to undergraduates."""
 
     searchable = f"{posting.title} {posting.eligibility_text}".strip()
+    if any(pattern.search(searchable) for pattern in STRICT_GRADUATE_ONLY_PATTERNS):
+        return True
     if any(pattern.search(searchable) for pattern in UNDERGRADUATE_ELIGIBILITY_PATTERNS):
         return False
     return any(pattern.search(searchable) for pattern in GRADUATE_ONLY_PATTERNS)

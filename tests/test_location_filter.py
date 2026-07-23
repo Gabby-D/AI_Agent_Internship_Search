@@ -42,6 +42,23 @@ def test_matches_allowed_location_rejects_hybrid_remote_in_other_cities(tmp_path
     assert not matches_allowed_location("Other City (Remote)", preferences_path=preferences)
 
 
+def test_flexible_location_uses_structured_job_details(tmp_path):
+    preferences = write_preferences(tmp_path)
+
+    assert matches_allowed_location(
+        "Flexible - Any Company Site",
+        "Software Engineering Internship",
+        preferences_path=preferences,
+        details="Teams are available in Other City and Preferred City.",
+    )
+    assert not matches_allowed_location(
+        "Flexible - Any Company Site",
+        "Software Engineering Internship",
+        preferences_path=preferences,
+        details="Teams are available only in Other City.",
+    )
+
+
 def test_summarize_allowed_locations_hides_non_preferred_entries(tmp_path):
     preferences = tmp_path / "location_preferences.txt"
     preferences.write_text("Preferred City\nPreferred Country\n", encoding="utf-8")

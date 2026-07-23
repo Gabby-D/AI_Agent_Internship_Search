@@ -58,6 +58,38 @@ to other affected companies one at a time.
 - The blocked search page is not retained as an alternate collection URL,
   because doing so would create a false source warning after a successful scan.
 
+## Follow-up Source Findings
+
+### Ayar Labs
+
+- The company careers page embeds a Paycor Recruiting board.
+- A reusable `paycor_html` collector reads the complete public `CareerHome`
+  listing and treats an empty internship result as a successful scan.
+- Live validation found no current internship or co-op titles and no source
+  errors.
+
+### Form Energy
+
+- The company open-jobs wrapper embeds the public Form Energy Ashby board and
+  can intermittently return HTTP 403.
+- Source configuration now points directly to the Ashby board so the existing
+  reusable `ashby_api` collector can scan the complete result set.
+- Live validation found no current internship or co-op titles and no source
+  errors.
+
+### SpaceX
+
+- The existing public Greenhouse source successfully enumerates all current
+  internship and co-op records.
+- Flexible multi-site records keep their location list in the job description,
+  so location filtering now consults description text when the structured
+  location is generic.
+- Explicit graduate-program requirements take precedence over incidental
+  bachelor's-degree text.
+- Live validation collected four internship/co-op records, included the one
+  matching undergraduate and private location requirements, excluded the
+  graduate-engineer role, and reported no source errors.
+
 ## Acceptance Criteria
 
 - RTX collection does not depend on the Cloudflare-blocked search-result HTML.

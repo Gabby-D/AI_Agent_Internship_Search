@@ -157,6 +157,46 @@ def test_evaluate_posting_excludes_graduate_program_in_title():
     assert result.included is False
 
 
+def test_evaluate_posting_excludes_graduate_engineer_even_with_bachelors_text():
+    result = evaluate_posting(
+        make_posting(
+            title="Fall 2026 Graduate Engineer Internship/Co-op",
+            location="Remote",
+            eligibility_text=(
+                "Must be enrolled in a graduate program and hold a bachelor's "
+                "degree in engineering."
+            ),
+        )
+    )
+
+    assert result.included is False
+    assert any("graduate or advanced-degree" in reason for reason in result.reasons)
+
+
+def test_evaluate_posting_checks_flexible_location_details(monkeypatch):
+    observed: dict[str, str] = {}
+
+    def fake_location_match(location, title, preferences_path=None, *, details=None):
+        observed["details"] = details
+        return "Preferred City" in details
+
+    monkeypatch.setattr(
+        "internship_search.posting_filter.matches_allowed_location",
+        fake_location_match,
+    )
+
+    result = evaluate_posting(
+        make_posting(
+            title="Fall 2026 Software Engineering Internship/Co-op",
+            location="Flexible - Any Company Site",
+            eligibility_text="Teams are available in Preferred City.",
+        )
+    )
+
+    assert result.included is True
+    assert observed["details"] == "Teams are available in Preferred City."
+
+
 def test_evaluate_posting_excludes_jd_internship():
     result = evaluate_posting(
         make_posting(

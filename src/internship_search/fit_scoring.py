@@ -98,7 +98,11 @@ def score_postings(
     for posting in postings:
         if not posting.included:
             continue
-        if not matches_allowed_location(posting.location, posting.title):
+        if not matches_allowed_location(
+            posting.location,
+            posting.title,
+            details=posting.eligibility_text,
+        ):
             continue
         parsed = scorer.score_posting(
             posting=posting,
