@@ -27,6 +27,17 @@ def test_bain_program_page_is_excluded():
     )
 
 
+def test_bain_named_program_detail_pages_are_specific_listings():
+    assert is_specific_internship_listing(
+        "Associate Consultant Internship",
+        "https://www.bain.com/careers/work-with-us/internships-programs/associate-consultant-internship/",
+    )
+    assert is_specific_internship_listing(
+        "Summer Associate",
+        "https://www.bain.com/careers/work-with-us/internships-programs/summer-associate/",
+    )
+
+
 def test_pwc_search_page_is_excluded():
     assert not is_specific_internship_listing(
         "Search internships Search and apply to an internship",

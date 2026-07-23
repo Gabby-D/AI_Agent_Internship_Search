@@ -117,7 +117,17 @@ def merge_posting_metadata(primary: JobPosting, secondary: JobPosting) -> JobPos
         title=prefer_title(primary.title, secondary.title),
         company=prefer_company(primary.company, secondary.company),
         location=prefer_location(primary.location, secondary.location),
+        eligibility_text=prefer_eligibility_text(
+            primary.eligibility_text,
+            secondary.eligibility_text,
+        ),
     )
+
+
+def prefer_eligibility_text(primary: str, secondary: str) -> str:
+    """Keep the richer public qualifications text when candidates are merged."""
+
+    return secondary if len(secondary.strip()) > len(primary.strip()) else primary
 
 
 def parse_job_board_title(title: str, url: str) -> tuple[str, str]:
@@ -280,6 +290,17 @@ def prefer_company(current: str, candidate: str) -> str:
 
 def prefer_location(current: str, candidate: str) -> str:
     if is_missing_location(current) and not is_missing_location(candidate):
+        return candidate
+    normalized_current = current.strip().lower()
+    normalized_candidate = candidate.strip().lower()
+    if "|" in candidate and "|" not in current and not is_missing_location(candidate):
+        return candidate
+    if (
+        normalized_current
+        and normalized_candidate
+        and normalized_current in normalized_candidate
+        and len(normalized_candidate) > len(normalized_current)
+    ):
         return candidate
     return current
 

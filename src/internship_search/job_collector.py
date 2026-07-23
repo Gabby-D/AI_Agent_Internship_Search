@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import date
 from html.parser import HTMLParser
@@ -11,7 +13,11 @@ from typing import Callable
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
-from internship_search.internship_listing import is_specific_internship_listing
+from internship_search.internship_listing import (
+    is_specific_internship_listing,
+    is_specific_program_detail_url,
+    mentions_internship,
+)
 from internship_search.source_registry import CompanySource, read_source_registry
 
 
@@ -22,6 +28,66 @@ SLOW_SOURCE_TIMEOUT_SECONDS = {
     "www.mckinsey.com": 60,
 }
 DEFAULT_FETCH_TIMEOUT_SECONDS = 20
+MAX_CAREER_PAGES_PER_SOURCE_URL = 100
+
+PAGINATION_QUERY_KEYS = {
+    "page",
+    "pageindex",
+    "pageoffset",
+    "pagenumber",
+    "page_number",
+    "pg",
+    "currentpage",
+    "resultsfrom",
+}
+NUMERIC_PAGINATION_QUERY_KEYS = {
+    "start",
+    "startindex",
+    "startrow",
+    "offset",
+    "from",
+}
+PAGINATION_TEXT = {
+    "next",
+    "next page",
+    "older",
+    "older jobs",
+    "more",
+    "more jobs",
+    "load more",
+    "show more",
+}
+CAREER_LISTING_TEXT = {
+    "all jobs",
+    "all openings",
+    "available jobs",
+    "career opportunities",
+    "careers",
+    "current jobs",
+    "current openings",
+    "find jobs",
+    "job opportunities",
+    "jobs",
+    "open jobs",
+    "open positions",
+    "open roles",
+    "search jobs",
+    "see jobs",
+    "view jobs",
+    "view openings",
+}
+TRUSTED_CAREER_HOST_FRAGMENTS = (
+    "ashbyhq.com",
+    "breezy.hr",
+    "greenhouse.io",
+    "icims.com",
+    "lever.co",
+    "myworkdayjobs.com",
+    "smartrecruiters.com",
+    "successfactors.com",
+    "taleo.net",
+    "teamtailor.com",
+)
 
 TEXT_JOB_KEYWORDS = {
     "analyst",
@@ -72,6 +138,7 @@ class JobPosting:
     posting_url: str
     date_collected: str
     source_url: str
+    eligibility_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -92,6 +159,15 @@ class CollectionResult:
 class LinkCandidate:
     text: str
     href: str
+
+
+@dataclass(frozen=True)
+class CareerPageLink:
+    text: str
+    href: str
+    rel: str = ""
+    aria_label: str = ""
+    class_name: str = ""
 
 
 def collect_from_registry_file(
@@ -135,11 +211,18 @@ def collect_from_sources(
     postings: list[JobPosting] = []
     errors: list[CollectionError] = []
     page_fetcher = fetch_page or fetch_url
+    page_cache: dict[str, str] = {}
+
+    def cached_page_fetcher(url: str) -> str:
+        canonical = canonical_navigation_url(url)
+        if canonical not in page_cache:
+            page_cache[canonical] = page_fetcher(url)
+        return page_cache[canonical]
 
     for source in sources:
         source_postings, source_errors = collect_postings_for_source_urls(
             source=source,
-            page_fetcher=page_fetcher,
+            page_fetcher=cached_page_fetcher,
             collected_date=collected_date,
         )
         postings.extend(source_postings)
@@ -210,9 +293,10 @@ def collect_postings_for_source_urls(
     errors: list[CollectionError] = []
     fetch_failures = 0
     last_warning = ""
+    complete_scan = False
 
     for careers_url in urls_to_try:
-        if "/job/" in careers_url.lower():
+        if is_probable_direct_source_url(careers_url):
             direct_source = CompanySource(
                 company=source.company,
                 website=source.website,
@@ -230,48 +314,108 @@ def collect_postings_for_source_urls(
                 collected_date=collected_date,
             )
             for posting in outcome.postings:
-                postings_by_url.setdefault(posting.posting_url, posting)
+                store_posting_candidate(postings_by_url, posting)
             if outcome.warning:
                 last_warning = outcome.warning
             continue
 
-        try:
-            from internship_search.retry import retry_call
+        page_queue: deque[str] = deque([careers_url])
+        queued_urls = {canonical_navigation_url(careers_url)}
+        pages_processed = 0
+        root_fetched = False
 
-            html = retry_call(lambda: page_fetcher(careers_url), max_attempts=2)
-        except Exception as error:  # noqa: BLE001 - preserve source-level failures.
-            fetch_failures += 1
+        while page_queue and pages_processed < MAX_CAREER_PAGES_PER_SOURCE_URL:
+            page_url = page_queue.popleft()
+            pages_processed += 1
+            try:
+                from internship_search.retry import retry_call
+
+                html = retry_call(lambda: page_fetcher(page_url), max_attempts=2)
+            except Exception as error:  # noqa: BLE001 - preserve source-level failures.
+                fetch_source = source_for_page(source, page_url, root_url=careers_url)
+                api_outcome = collect_postings_for_source(
+                    source=fetch_source,
+                    html="",
+                    collected_date=collected_date,
+                )
+                if api_outcome.complete:
+                    for posting in api_outcome.postings:
+                        store_posting_candidate(postings_by_url, posting)
+                    complete_scan = True
+                    if canonical_navigation_url(page_url) == canonical_navigation_url(careers_url):
+                        root_fetched = True
+                    continue
+                if canonical_navigation_url(page_url) == canonical_navigation_url(careers_url):
+                    fetch_failures += 1
+                errors.append(
+                    CollectionError(
+                        company=source.company,
+                        source_url=page_url,
+                        message=str(error),
+                    )
+                )
+                continue
+
+            if canonical_navigation_url(page_url) == canonical_navigation_url(careers_url):
+                root_fetched = True
+            fetch_source = source_for_page(source, page_url, root_url=careers_url)
+            outcome = collect_postings_for_source(
+                source=fetch_source,
+                html=html,
+                collected_date=collected_date,
+            )
+            for posting in outcome.postings:
+                store_posting_candidate(postings_by_url, posting)
+            if outcome.warning:
+                last_warning = outcome.warning
+                if outcome.postings:
+                    errors.append(
+                        CollectionError(
+                            company=source.company,
+                            source_url=page_url,
+                            message=outcome.warning,
+                        )
+                    )
+            if outcome.complete:
+                complete_scan = True
+
+            navigation_urls = (
+                []
+                if is_detail_navigation_url(page_url)
+                else discover_career_navigation_urls(
+                    html,
+                    current_url=page_url,
+                    root_url=careers_url,
+                )
+            )
+            if outcome.complete and fetch_source.collector == "mckinsey_jobs":
+                navigation_urls = []
+            if outcome.complete:
+                navigation_urls = [
+                    url for url in navigation_urls if is_detail_navigation_url(url)
+                ]
+            for next_url in navigation_urls:
+                canonical = canonical_navigation_url(next_url)
+                if canonical in queued_urls:
+                    continue
+                queued_urls.add(canonical)
+                page_queue.append(next_url)
+
+        if page_queue:
             errors.append(
                 CollectionError(
                     company=source.company,
                     source_url=careers_url,
-                    message=str(error),
+                    message=(
+                        "Career pagination exceeded the safety limit of "
+                        f"{MAX_CAREER_PAGES_PER_SOURCE_URL} pages; some later pages may be missing."
+                    ),
                 )
             )
-            continue
+        if not root_fetched and fetch_failures == 0:
+            fetch_failures += 1
 
-        fetch_source = CompanySource(
-            company=source.company,
-            website=source.website,
-            careers_url=careers_url,
-            source_type=source.source_type,
-            origin=source.origin,
-            has_connection=source.has_connection,
-            notes=source.notes,
-            alternate_careers_urls=source.alternate_careers_urls,
-            collector=source.collector,
-        )
-        outcome = collect_postings_for_source(
-            source=fetch_source,
-            html=html,
-            collected_date=collected_date,
-        )
-        for posting in outcome.postings:
-            postings_by_url.setdefault(posting.posting_url, posting)
-        if outcome.warning:
-            last_warning = outcome.warning
-
-    if not postings_by_url and fetch_failures < len(urls_to_try):
+    if not postings_by_url and fetch_failures < len(urls_to_try) and not complete_scan:
         errors.append(
             CollectionError(
                 company=source.company,
@@ -282,6 +426,240 @@ def collect_postings_for_source_urls(
         )
 
     return list(postings_by_url.values()), errors
+
+
+def source_for_page(
+    source: CompanySource,
+    page_url: str,
+    *,
+    root_url: str,
+) -> CompanySource:
+    """Create a source whose relative links resolve against the current page."""
+
+    root_host = urlparse(root_url).netloc.lower()
+    page_host = urlparse(page_url).netloc.lower()
+    collector = source.collector
+    if page_host != root_host and collector != "auto":
+        collector = "auto"
+    return CompanySource(
+        company=source.company,
+        website=source.website,
+        careers_url=page_url,
+        source_type=source.source_type,
+        origin=source.origin,
+        has_connection=source.has_connection,
+        notes=source.notes,
+        collector=collector,
+    )
+
+
+def store_posting_candidate(
+    postings_by_url: dict[str, JobPosting],
+    posting: JobPosting,
+) -> None:
+    """Merge list-page and detail-page metadata for the same public posting."""
+
+    existing = postings_by_url.get(posting.posting_url)
+    if existing is None:
+        postings_by_url[posting.posting_url] = posting
+        return
+    from internship_search.posting_metadata import merge_posting_metadata
+
+    postings_by_url[posting.posting_url] = merge_posting_metadata(existing, posting)
+
+
+def discover_career_navigation_urls(
+    html: str,
+    *,
+    current_url: str,
+    root_url: str,
+) -> list[str]:
+    """Find safe pagination and job-listing pages linked from a careers page."""
+
+    parser = CareerPageLinkExtractor()
+    parser.feed(html)
+    current_host = urlparse(current_url).netloc.lower()
+    root_host = urlparse(root_url).netloc.lower()
+    discovered: list[str] = []
+    seen: set[str] = set()
+
+    for link in parser.links:
+        target = normalize_link(current_url, link.href)
+        if not target:
+            continue
+        target = repair_career_pagination_url(target)
+        parsed = urlparse(target)
+        target_host = parsed.netloc.lower()
+        same_career_host = target_host in {current_host, root_host}
+        trusted_external = is_trusted_career_host(target_host)
+        pagination = is_pagination_link(link, target)
+        listing_page = is_career_listing_page_link(link, target)
+        detail_page = is_internship_detail_page_link(link, target)
+        if is_unrelated_locale_variant(target, root_url):
+            continue
+        if pagination and not same_career_host:
+            continue
+        if listing_page and not (same_career_host or trusted_external):
+            continue
+        if detail_page and not (same_career_host or trusted_external):
+            continue
+        if not pagination and not listing_page and not detail_page:
+            continue
+
+        canonical = canonical_navigation_url(target)
+        if canonical in seen or canonical == canonical_navigation_url(current_url):
+            continue
+        seen.add(canonical)
+        discovered.append(target)
+
+    return discovered
+
+
+def is_pagination_link(link: CareerPageLink, target_url: str) -> bool:
+    text = " ".join(link.text.lower().split())
+    metadata = " ".join([link.rel, link.aria_label, link.class_name]).lower()
+    if "next" in link.rel.lower() or "next" in link.aria_label.lower():
+        return True
+    if text in PAGINATION_TEXT or text.startswith("next ") or "pagination-next" in metadata:
+        return True
+
+    parsed = urlparse(target_url)
+    query = parse_qs(parsed.query)
+    if any(key.lower() in PAGINATION_QUERY_KEYS for key in query):
+        return True
+    for key, values in query.items():
+        if key.lower() not in NUMERIC_PAGINATION_QUERY_KEYS:
+            continue
+        if any(value.isdigit() for value in values):
+            return True
+    path = parsed.path.lower().rstrip("/")
+    if text.isdigit() and re.search(r"/(?:careers?|jobs?|openings?|search)", path):
+        return not is_probable_job_detail_url(target_url)
+    return bool(
+        re.search(r"/(?:page|pages|p)/?[-_]?\d+$", path)
+        or re.search(r"[-_/](?:page|pg)[-_]?\d+$", path)
+    )
+
+
+def is_career_listing_page_link(link: CareerPageLink, target_url: str) -> bool:
+    text = " ".join(link.text.lower().split())
+    parsed = urlparse(target_url)
+    path = parsed.path.lower().rstrip("/")
+    host = parsed.netloc.lower()
+    if host == "careers.blackrock.com" and path == "/job":
+        # BlackRock uses this as a search-form action, not a browsable job index.
+        return False
+    if link.rel == "career-embed" and is_trusted_career_host(urlparse(target_url).netloc):
+        return True
+    if text in CAREER_LISTING_TEXT:
+        return True
+    parts = [part for part in path.split("/") if part]
+    if "lever.co" in host or "ashbyhq.com" in host:
+        return len(parts) == 1
+    if "greenhouse.io" in host:
+        return len(parts) == 1 or (len(parts) == 2 and parts[-1] == "jobs")
+    return bool(
+        re.search(
+            r"/(?:careers?|jobs?|openings?|positions?|search-jobs|job-search)$",
+            path,
+        )
+    )
+
+
+def is_internship_detail_page_link(link: CareerPageLink, target_url: str) -> bool:
+    """Identify named internship records that should be opened for full metadata."""
+
+    text = " ".join(link.text.split())
+    path = urlparse(target_url).path.lower().rstrip("/")
+    if re.search(r"/internships?-programs/[^/]+$", path):
+        # Program indexes often label every link only "Learn more"; the detail
+        # page determines whether an internship is open, while the normalized
+        # slug prevents unrelated scholarships and exploratory programs from
+        # expanding into a large navigation crawl.
+        slug_text = path.rsplit("/", maxsplit=1)[-1].replace("-", " ")
+        return mentions_internship(text, slug_text)
+    return mentions_internship(text, target_url) and is_probable_job_detail_url(
+        target_url
+    )
+
+
+def is_detail_navigation_url(url: str) -> bool:
+    path = urlparse(url).path.lower().rstrip("/")
+    return bool(
+        is_probable_job_detail_url(url)
+        or re.search(r"/internships?-programs/[^/]+$", path)
+    )
+
+
+def is_unrelated_locale_variant(target_url: str, root_url: str) -> bool:
+    """Avoid crawling duplicate translated navigation trees from a global site."""
+
+    locale_pattern = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
+    target_parts = [part for part in urlparse(target_url).path.split("/") if part]
+    root_parts = [part for part in urlparse(root_url).path.split("/") if part]
+    target_locale = (
+        target_parts[0].lower()
+        if target_parts and locale_pattern.fullmatch(target_parts[0])
+        else ""
+    )
+    root_locale = (
+        root_parts[0].lower()
+        if root_parts and locale_pattern.fullmatch(root_parts[0])
+        else ""
+    )
+    return bool(target_locale and target_locale != root_locale)
+
+
+def repair_career_pagination_url(url: str) -> str:
+    """Repair known career-site pagination URLs that depend on browser JavaScript."""
+
+    parsed = urlparse(url)
+    if parsed.netloc.lower() != "careers.blackrock.com" or parsed.query:
+        return url
+    match = re.fullmatch(r"(/search-jobs)&(p=\d+)", parsed.path, flags=re.IGNORECASE)
+    if not match:
+        return url
+    return parsed._replace(path=match.group(1), query=match.group(2)).geturl()
+
+
+def is_probable_job_detail_url(url: str) -> bool:
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    path = parsed.path.lower().rstrip("/")
+    parts = [part for part in path.split("/") if part]
+    if re.search(r"/(?:job|jobs)/(?:[^/]+/)*\d+(?:/|$)", path):
+        return True
+    if "/job/" in path or "/jobdetails/" in path or "/job-detail/" in path:
+        return True
+    if "lever.co" in host or "ashbyhq.com" in host:
+        return len(parts) >= 2
+    return False
+
+
+def is_probable_direct_source_url(url: str) -> bool:
+    """Recognize a source that is itself one job without broadening link crawls."""
+
+    if is_probable_job_detail_url(url):
+        return True
+    path = urlparse(url).path.lower()
+    return bool(re.search(r"/jobs/(?:r[-_]\d+|\d+)(?:/|$)", path))
+
+
+def is_trusted_career_host(host: str) -> bool:
+    normalized = host.lower().split(":", 1)[0]
+    return any(
+        normalized == domain or normalized.endswith(f".{domain}")
+        for domain in TRUSTED_CAREER_HOST_FRAGMENTS
+    )
+
+
+def canonical_navigation_url(url: str) -> str:
+    parsed = urlparse(url.strip())
+    return parsed._replace(
+        scheme=parsed.scheme.lower(),
+        netloc=parsed.netloc.lower(),
+        fragment="",
+    ).geturl().rstrip("/")
 
 
 def deduplicate_urls(urls: list[str]) -> list[str]:
@@ -341,6 +719,10 @@ def extract_postings_from_html(
             continue
 
         title = clean_title(link.text)
+        if is_specific_program_detail_url(title.lower(), posting_url.lower()):
+            # Open the detail page first so closed programs and full locations
+            # can be evaluated before a posting is accepted.
+            continue
         if not is_specific_internship_listing(title, posting_url):
             continue
 
@@ -549,3 +931,75 @@ class LinkExtractor(HTMLParser):
         )
         self._current_href = None
         self._current_text = []
+
+
+class CareerPageLinkExtractor(HTMLParser):
+    """Extract links plus navigation attributes used by careers pagination."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[CareerPageLink] = []
+        self._current_attrs: dict[str, str] | None = None
+        self._current_text: list[str] = []
+        self._current_tag: str | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag_name = tag.lower()
+        if tag_name not in {"a", "button", "iframe", "link", "script"}:
+            return
+        attrs_dict = {key.lower(): value or "" for key, value in attrs}
+        if tag_name in {"iframe", "script"}:
+            src = attrs_dict.get("src", "")
+            if src:
+                self.links.append(
+                    CareerPageLink(
+                        text="",
+                        href=src,
+                        rel="career-embed",
+                    )
+                )
+            return
+        href = next(
+            (
+                attrs_dict.get(key, "")
+                for key in ("href", "data-url", "data-href", "data-next", "data-load-more-url")
+                if attrs_dict.get(key)
+            ),
+            "",
+        )
+        if not href:
+            return
+        attrs_dict["href"] = href
+        if tag_name == "link":
+            if "next" in attrs_dict.get("rel", "").lower():
+                self.links.append(
+                    CareerPageLink(
+                        text="Next",
+                        href=href,
+                        rel=attrs_dict.get("rel", ""),
+                    )
+                )
+            return
+        self._current_attrs = attrs_dict
+        self._current_text = []
+        self._current_tag = tag_name
+
+    def handle_data(self, data: str) -> None:
+        if self._current_attrs is not None:
+            self._current_text.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() != self._current_tag or self._current_attrs is None:
+            return
+        self.links.append(
+            CareerPageLink(
+                text=clean_title(" ".join(self._current_text)),
+                href=self._current_attrs["href"],
+                rel=self._current_attrs.get("rel", ""),
+                aria_label=self._current_attrs.get("aria-label", ""),
+                class_name=self._current_attrs.get("class", ""),
+            )
+        )
+        self._current_attrs = None
+        self._current_text = []
+        self._current_tag = None

@@ -233,7 +233,11 @@ def generic_page_reason(title: str, url: str) -> str | None:
         (fragment for fragment in GENERIC_URL_FRAGMENTS if fragment in url),
         "",
     )
-    if matched_url and not has_specific_job_url(url):
+    if (
+        matched_url
+        and not has_specific_job_url(url)
+        and not is_specific_program_detail_url(title, url)
+    ):
         return f"URL looks like a general careers page ('{matched_url}')."
 
     if re.fullmatch(r"(search )?internships?", title):
@@ -311,11 +315,27 @@ def has_specific_job_title(title: str) -> bool:
         return True
     if re.search(r"\bsummer\b", title) and re.search(r"\bintern", title):
         return len(title.split()) >= 3
+    if re.search(r"\bsummer associate\b", title):
+        return True
+    if re.search(r"\bassociate consultant internship?\b", title):
+        return True
+    if re.search(r"\binternship\b", title) and len(title.split()) >= 2:
+        return True
     if re.search(r"\bintern", title) and any(
         re.search(rf"\b{re.escape(role)}\b", title) for role in ROLE_TITLE_TERMS
     ):
         return True
     return False
+
+
+def is_specific_program_detail_url(title: str, url: str) -> bool:
+    """Distinguish a named program record from its broad program index."""
+
+    parsed = urlparse(url)
+    path = parsed.path.lower().rstrip("/")
+    if not re.search(r"/internships?-programs/[^/]+$", path):
+        return False
+    return has_specific_job_title(title)
 
 
 def listing_category_label(category: str) -> str:

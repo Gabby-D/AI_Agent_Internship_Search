@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 REMOTE_MARKERS = (
@@ -52,11 +53,9 @@ def matches_allowed_location(
 def _location_text_is_allowed(text: str, preferred_markers: tuple[str, ...]) -> bool:
     if not text:
         return False
-    if "|" in text or " and " in text:
-        return False
     if contains_marker(text, REMOTE_MARKERS):
         if "(" in text or ")" in text:
-            return False
+            return contains_marker(text, preferred_markers)
         return True
     return contains_marker(text, preferred_markers)
 
@@ -74,3 +73,37 @@ def load_location_markers(path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH) 
 
 def contains_marker(text: str, markers: tuple[str, ...]) -> bool:
     return any(marker in text for marker in markers)
+
+
+def summarize_allowed_locations(
+    location: str,
+    preferences_path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH,
+) -> str:
+    """Show matching location entries without listing every available office."""
+
+    original = location.strip()
+    if not original:
+        return location
+
+    markers = load_location_markers(preferences_path)
+    parts = [
+        part.strip(" \t\r\n-–—•")
+        for part in re.split(r"\s*(?:\||;|\r?\n|•)\s*", original)
+        if part.strip(" \t\r\n-–—•")
+    ]
+    if len(parts) < 2:
+        return original
+
+    matching = [
+        part
+        for part in parts
+        if _location_text_is_allowed(normalize_location_text(part), markers)
+    ]
+    if not matching:
+        return original
+
+    unique_matching = list(dict.fromkeys(matching))
+    summary = " | ".join(unique_matching)
+    if len(unique_matching) < len(parts):
+        summary += " | …"
+    return summary

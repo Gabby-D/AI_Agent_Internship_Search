@@ -38,13 +38,22 @@ Current CLI commands:
 - `src/internship_search/job_board_listings.py` normalizes LinkedIn and Indeed listing URLs and records public-search limitations.
 - `src/internship_search/internet_search.py` searches the internet for company careers pages through replaceable providers with DuckDuckGo-first Google Custom Search failover.
 - `src/internship_search/monitored_companies.py` tracks seed companies with no specific internship openings.
-- `src/internship_search/career_collectors.py` runs source-specific career page collectors for difficult sites.
-- `src/internship_search/posting_metadata.py` enriches posting titles, company names, and locations from parsers and public ATS APIs.
+- `src/internship_search/career_collectors.py` runs reusable platform collectors,
+  semantic job-detail extraction, and complete public-board pagination for
+  Greenhouse, Lever, Ashby, Workday, Phenom, Consider, Teamtailor, Breezy, and
+  McKinsey.
+- `src/internship_search/posting_metadata.py` enriches posting titles, company
+  names, and single- or multi-office locations from detail parsers and public
+  ATS APIs.
 - `src/internship_search/registry_enrichment.py` improves registry careers URLs from saved internet-search results.
-- `src/internship_search/job_collector.py` fetches career source pages and extracts first-pass posting candidates.
+- `src/internship_search/job_collector.py` traverses safe career pagination,
+  job indexes, and internship detail pages; avoids duplicate translated
+  navigation trees; caches shared pages; and merges list/detail metadata.
 - `src/internship_search/posting_history.py` tracks new, seen, changed, missing, and duplicate postings across runs using URL and role-key matching.
 - `src/internship_search/internship_listing.py` classifies specific internship listings versus generic program or search pages.
-- `src/internship_search/posting_filter.py` filters posting candidates for likely target-cycle internship relevance.
+- `src/internship_search/posting_filter.py` filters posting candidates for
+  undergraduate eligibility, likely target-cycle internship relevance, and the
+  private location policy.
 - `src/internship_search/review_report.py` generates a readable local Markdown review report.
 - `src/internship_search/fit_scoring.py` scores filtered postings through replaceable AI or local providers.
 - `src/internship_search/resume_scoring.py` loads optional resume summaries for opt-in AI scoring.
@@ -54,7 +63,7 @@ Current CLI commands:
 - `src/internship_search/retry.py` retries transient provider failures with exponential backoff.
 - `src/internship_search/scheduled_collection.py` composes the full local workflow for manual or scheduled runs and records per-step diagnostics.
 - `src/internship_search/review_state.py` stores posting review status, dashboard filters, email-status classification, and UI-edited preferences.
-- `src/internship_search/review_ui.py` serves a local browser dashboard with a simple internship listing table and review status controls.
+- `src/internship_search/review_ui.py` serves the local dashboard, review controls, and a background-safe **Run search now** action that invokes the full monitored-company workflow without sending email.
 - Future agent, search, scoring, email, and UI modules should be added under `src/internship_search/`.
 
 ## Modularity Guidance

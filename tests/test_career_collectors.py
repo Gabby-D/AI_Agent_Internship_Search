@@ -1,13 +1,23 @@
 from internship_search.career_collectors import (
     clear_consider_board_cache,
+    collect_ashby_postings,
     collect_blackrock_postings,
+    collect_breezy_postings,
     collect_consider_board_postings,
+    collect_direct_job_url_posting,
+    collect_greenhouse_postings,
     collect_json_ld_postings,
     collect_pwc_postings,
+    collect_semantic_detail_posting,
     collect_postings_for_source,
+    collect_lever_postings,
+    collect_mckinsey_postings,
+    collect_phenom_postings,
+    collect_workday_postings,
     collect_ycombinator_postings,
     company_names_match,
     consider_board_empty_warning,
+    fetch_consider_board_jobs,
 )
 from internship_search.source_registry import CompanySource
 
@@ -94,6 +104,111 @@ YCOMBINATOR_HTML = """
 """
 
 
+def test_collect_breezy_postings_treats_empty_public_board_as_complete():
+    source = make_source(
+        company="LeadGenius",
+        careers_url="https://leadgenius.breezy.hr/",
+        collector="auto",
+    )
+
+    outcome = collect_postings_for_source(
+        source,
+        "<html><body><h2>%LABEL_NO_POSITIONS%</h2></body></html>",
+        "2026-07-23",
+    )
+
+    assert collect_breezy_postings(
+        source,
+        "<html><body><h2>%LABEL_NO_POSITIONS%</h2></body></html>",
+        "2026-07-23",
+    ) == []
+    assert outcome.postings == []
+    assert outcome.complete is True
+    assert outcome.warning == ""
+
+
+def test_collect_phenom_postings_pages_complete_public_widget():
+    source = make_source(
+        company="Example Airline",
+        careers_url="https://careers.example.com/us/en/search-results",
+        collector="auto",
+    )
+    html = (
+        '<script>var phApp={"widgetApiEndpoint":"https://careers.example.com/widgets",'
+        '"country":"us","locale":"en_us","refNum":"EXAMPLE","pageId":"page16"};</script>'
+        "https://cdn.phenompeople.com/CareerConnectResources/example.js"
+    )
+    calls = []
+
+    def fake_post_json(url, payload):
+        calls.append((url, payload))
+        if payload["from"] == 0:
+            return {
+                "refineSearch": {
+                    "totalHits": 2,
+                    "data": {
+                        "jobs": [
+                            {
+                                "jobId": "INT-1",
+                                "title": "2027 Data Science Intern",
+                                "location": "San Francisco, CA",
+                                "descriptionTeaser": "Open to undergraduate students.",
+                            },
+                            {
+                                "jobId": "FT-1",
+                                "title": "Senior Data Scientist",
+                                "location": "Chicago, IL",
+                            },
+                        ]
+                    },
+                }
+            }
+        raise AssertionError("Unexpected extra Phenom page")
+
+    postings = collect_phenom_postings(
+        source,
+        html,
+        "2026-07-23",
+        post_json=fake_post_json,
+    )
+
+    assert len(postings) == 1
+    assert postings[0].title == "2027 Data Science Intern"
+    assert postings[0].location == "San Francisco, CA"
+    assert postings[0].eligibility_text == "Open to undergraduate students."
+    assert postings[0].posting_url.endswith(
+        "/us/en/job/INT-1/2027-data-science-intern"
+    )
+    assert calls[0][0] == "https://careers.example.com/widgets"
+    assert calls[0][1]["ddoKey"] == "refineSearch"
+    assert calls[0][1]["size"] == 100
+
+
+def test_detected_phenom_page_is_marked_complete(monkeypatch):
+    source = make_source(
+        company="Example Airline",
+        careers_url="https://careers.example.com/us/en/search-results",
+        collector="auto",
+    )
+    html = (
+        '<script>var phApp={"widgetApiEndpoint":"https://careers.example.com/widgets",'
+        '"country":"us","locale":"en_us","refNum":"EXAMPLE","pageId":"page16"};</script>'
+        "https://cdn.phenompeople.com/CareerConnectResources/example.js"
+    )
+    monkeypatch.setattr(
+        "internship_search.career_collectors.post_public_json",
+        lambda _url, _payload: {
+            "refineSearch": {"totalHits": 0, "data": {"jobs": []}}
+        },
+    )
+
+    outcome = collect_postings_for_source(source, html, "2026-07-23")
+
+    assert "phenom_api" in outcome.strategies_tried
+    assert outcome.complete is True
+    assert outcome.warning == ""
+
+
 def test_collect_ycombinator_postings_preserves_listing_location():
     postings = collect_ycombinator_postings(
         make_source(
@@ -138,6 +253,92 @@ def test_collect_blackrock_postings_parses_structured_search_results():
     assert len(postings) == 1
     assert postings[0].title == "2027 Summer Internship Program - AMERS"
     assert postings[0].location == "New York, NY"
+
+
+def test_collect_semantic_detail_posting_preserves_all_locations():
+    html = """
+    <html><body>
+      <h1>Associate Consultant Internship</h1>
+      <div>Job ID</div><div>10403</div>
+      <div>Employment type</div><div>Temporary Full-Time</div>
+      <div>Location(s)</div>
+      <div>New York | San Francisco | Silicon Valley</div>
+      <a href="/apply">Apply now</a>
+      <h2>Description &amp; Requirements</h2>
+    </body></html>
+    """
+    source = make_source(
+        company="Bain",
+        careers_url=(
+            "https://www.bain.com/careers/work-with-us/internships-programs/"
+            "associate-consultant-internship/"
+        ),
+        collector="auto",
+    )
+    postings = collect_semantic_detail_posting(source, html, "2026-07-22")
+
+    assert len(postings) == 1
+    assert postings[0].location == "New York | San Francisco | Silicon Valley"
+
+
+def test_collect_mckinsey_postings_reads_every_api_page():
+    records = [
+        {
+            "jobID": str(index),
+            "title": f"Business Analyst Intern {index}",
+            "friendlyURL": f"businessanalystintern-{index}",
+            "cities": ["San Francisco", "New York"],
+            "yourBackground": "Undergraduate degree in progress.",
+            "whatYouWillDo": "Join a client team.",
+        }
+        for index in range(101)
+    ]
+    requested_urls = []
+
+    def fake_get_json(url):
+        requested_urls.append(url)
+        start = int(url.split("start=", 1)[1].split("&", 1)[0])
+        offset = start - 1
+        return {
+            "numFound": len(records),
+            "docs": records[offset : offset + 100],
+        }
+
+    postings = collect_mckinsey_postings(
+        make_source(
+            company="McKinsey & Co",
+            careers_url="https://www.mckinsey.com/careers/search-jobs",
+            collector="mckinsey_jobs",
+        ),
+        "2026-07-23",
+        get_json=fake_get_json,
+    )
+
+    assert len(postings) == 101
+    assert len(requested_urls) == 2
+    assert "start=1" in requested_urls[0]
+    assert "start=101" in requested_urls[1]
+    assert "Undergraduate degree in progress." in postings[0].eligibility_text
+
+
+def test_collect_semantic_detail_posting_skips_explicitly_closed_program():
+    html = """
+    <html><body>
+      <h1>Marketing Consulting Internship</h1>
+      <div>Employment type</div><div>Program</div>
+      <div>Location(s)</div><div>London</div>
+      <p>Our applications are now closed.</p>
+    </body></html>
+    """
+    source = make_source(
+        company="Bain",
+        careers_url=(
+            "https://www.bain.com/careers/work-with-us/internships-programs/frwd/"
+        ),
+        collector="auto",
+    )
+
+    assert collect_semantic_detail_posting(source, html, "2026-07-22") == []
 
 
 def test_collect_json_ld_postings_extracts_jobposting_records():
@@ -255,3 +456,271 @@ def test_collect_postings_for_source_uses_pwc_strategy():
 
 def test_company_names_match_is_case_insensitive():
     assert company_names_match("Glyphic Biotechnologies", "glyphic biotechnologies")
+
+
+def test_collect_lever_postings_reads_complete_public_board():
+    source = make_source(
+        company="Example Co",
+        careers_url="https://jobs.lever.co/example",
+        collector="auto",
+    )
+    payload = [
+        {
+            "text": "Summer Product Intern",
+            "hostedUrl": "https://jobs.lever.co/example/intern-1",
+            "categories": {"location": "Remote"},
+        },
+        {
+            "text": "Senior Engineer",
+            "hostedUrl": "https://jobs.lever.co/example/job-2",
+            "categories": {"location": "Remote"},
+        },
+    ]
+
+    postings = collect_lever_postings(
+        source,
+        "2026-07-22",
+        get_json=lambda url: payload,
+    )
+
+    assert [posting.title for posting in postings] == ["Summer Product Intern"]
+
+
+def test_collect_lever_postings_finds_internship_after_first_api_page():
+    source = make_source(
+        company="Example Co",
+        careers_url="https://jobs.lever.co/example",
+        collector="auto",
+    )
+    skips: list[int] = []
+
+    def get_json(url: str) -> list[dict]:
+        skip = int(url.split("skip=")[-1].split("&")[0])
+        skips.append(skip)
+        if skip == 0:
+            return [
+                {
+                    "id": f"job-{index}",
+                    "text": "Senior Engineer",
+                    "hostedUrl": f"https://jobs.lever.co/example/job-{index}",
+                    "categories": {"location": "Remote"},
+                }
+                for index in range(100)
+            ]
+        return [
+            {
+                "id": "later-intern",
+                "text": "2027 Summer Product Intern",
+                "hostedUrl": "https://jobs.lever.co/example/later-intern",
+                "categories": {"location": "Remote"},
+            }
+        ]
+
+    postings = collect_lever_postings(
+        source,
+        "2026-07-22",
+        get_json=get_json,
+    )
+
+    assert skips == [0, 100]
+    assert [posting.title for posting in postings] == ["2027 Summer Product Intern"]
+
+
+def test_collect_greenhouse_postings_reads_complete_public_board():
+    source = make_source(
+        company="Example Co",
+        careers_url="https://job-boards.greenhouse.io/example",
+        collector="auto",
+    )
+    payload = {
+        "jobs": [
+            {
+                "title": "2027 Finance Intern",
+                "absolute_url": "https://job-boards.greenhouse.io/example/jobs/1",
+                "location": {"name": "New York"},
+            }
+        ]
+    }
+
+    postings = collect_greenhouse_postings(
+        source,
+        "2026-07-22",
+        get_json=lambda url: payload,
+    )
+
+    assert len(postings) == 1
+    assert postings[0].location == "New York"
+
+
+def test_collect_greenhouse_postings_reads_embed_board_token():
+    source = make_source(
+        company="Example Co",
+        careers_url="https://boards.greenhouse.io/embed/job_board?for=example",
+        collector="auto",
+    )
+    requested: list[str] = []
+
+    def get_json(url: str) -> dict:
+        requested.append(url)
+        return {"jobs": []}
+
+    collect_greenhouse_postings(source, "2026-07-22", get_json=get_json)
+
+    assert requested == [
+        "https://boards-api.greenhouse.io/v1/boards/example/jobs?content=true"
+    ]
+
+
+def test_collect_ashby_postings_reads_complete_public_board():
+    source = make_source(
+        company="Example Co",
+        careers_url="https://jobs.ashbyhq.com/example",
+        collector="auto",
+    )
+    payload = {
+        "jobs": [
+            {
+                "title": "Operations Intern",
+                "jobUrl": "https://jobs.ashbyhq.com/example/1",
+                "location": "Remote",
+                "isListed": True,
+            }
+        ]
+    }
+
+    postings = collect_ashby_postings(
+        source,
+        "2026-07-22",
+        get_json=lambda url: payload,
+    )
+
+    assert len(postings) == 1
+    assert postings[0].title == "Operations Intern"
+
+
+def test_collect_workday_postings_pages_until_total_is_reached():
+    source = make_source(
+        company="Example Co",
+        careers_url="https://example.wd1.myworkdayjobs.com/en-US/External",
+        collector="auto",
+    )
+    offsets: list[int] = []
+
+    def post_json(url: str, payload: dict) -> dict:
+        offsets.append(payload["offset"])
+        if payload["offset"] == 0:
+            return {
+                "total": 3,
+                "jobPostings": [
+                    {
+                        "title": "Summer Intern One",
+                        "externalPath": "/job/intern-1",
+                        "locationsText": "Remote",
+                    },
+                    {
+                        "title": "Senior Engineer",
+                        "externalPath": "/job/engineer-1",
+                        "locationsText": "Remote",
+                    },
+                ],
+            }
+        return {
+            "total": 3,
+            "jobPostings": [
+                {
+                    "title": "Summer Intern Two",
+                    "externalPath": "/job/intern-2",
+                    "locationsText": "New York",
+                }
+            ],
+        }
+
+    postings = collect_workday_postings(
+        source,
+        "2026-07-22",
+        post_json=post_json,
+    )
+
+    assert offsets == [0, 2]
+    assert [posting.title for posting in postings] == [
+        "Summer Intern One",
+        "Summer Intern Two",
+    ]
+
+
+def test_complete_public_api_with_no_internships_is_not_an_access_failure(monkeypatch):
+    source = make_source(
+        company="Example Co",
+        careers_url="https://jobs.lever.co/example",
+        collector="auto",
+    )
+    monkeypatch.setattr(
+        "internship_search.career_collectors.get_public_json",
+        lambda url: [],
+    )
+
+    outcome = collect_postings_for_source(source, "<html></html>", "2026-07-22")
+
+    assert outcome.postings == []
+    assert outcome.complete is True
+    assert outcome.warning == ""
+
+
+def test_consider_board_fetches_later_batches():
+    calls: list[dict] = []
+
+    def post_json(url: str, payload: dict) -> dict:
+        calls.append(payload)
+        if len(calls) == 1:
+            return {
+                "jobs": [{"company": {"name": "One"}, "jobs": [{"id": "1"}]}],
+                "meta": {"sequence": "next-token", "size": 60},
+            }
+        return {
+            "jobs": [{"company": {"name": "Two"}, "jobs": [{"id": "2"}]}],
+            "meta": {},
+        }
+
+    jobs = fetch_consider_board_jobs(
+        board={"id": "example", "isParent": True},
+        api_base="https://jobs.example.com",
+        post_json=post_json,
+    )
+
+    assert [job["id"] for job in jobs] == ["1", "2"]
+    assert calls[1]["meta"]["sequence"] == "next-token"
+
+
+def test_public_api_failure_falls_back_and_reports_warning(monkeypatch):
+    source = make_source(
+        company="Example Co",
+        careers_url="https://jobs.lever.co/example",
+        collector="auto",
+    )
+    monkeypatch.setattr(
+        "internship_search.career_collectors.get_public_json",
+        lambda url: (_ for _ in ()).throw(RuntimeError("API unavailable")),
+    )
+    html = '<a href="/example/jobs/intern-1">2027 Summer Product Intern</a>'
+
+    outcome = collect_postings_for_source(source, html, "2026-07-22")
+
+    assert len(outcome.postings) == 1
+    assert outcome.complete is False
+    assert "lever_api failed: API unavailable" in outcome.warning
+
+
+def test_direct_job_url_supports_plural_jobs_path():
+    source = make_source(
+        company="Example Co",
+        careers_url=(
+            "https://careers.example.com/en/jobs/r-123/"
+            "2027-finance-summer-internship/"
+        ),
+        collector="direct_job_url",
+    )
+
+    postings = collect_direct_job_url_posting(source, "2026-07-23")
+
+    assert len(postings) == 1
+    assert postings[0].title == "2027 finance summer internship"

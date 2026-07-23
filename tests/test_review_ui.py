@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 
 from internship_search.email_summary import write_sent_history
 from internship_search.fit_scoring import ScoredPosting, write_scored_postings_jsonl
@@ -21,7 +23,7 @@ from internship_search.review_state import (
     set_posting_note,
     set_posting_review,
 )
-from internship_search.review_ui import is_address_in_use, render_review_page
+from internship_search.review_ui import ManualSearchController, is_address_in_use, render_review_page
 from internship_search.source_registry import CompanySource, write_source_registry
 
 
@@ -528,6 +530,39 @@ def test_load_review_dashboard_skips_stale_non_preferred_locations(tmp_path):
     assert dashboard["postings"][0]["company"] == "Connected Co"
 
 
+def test_load_review_dashboard_only_displays_relevant_location_entries(tmp_path):
+    data_dir = tmp_path / "data"
+    private_dir = tmp_path / "private"
+    write_private_inputs(private_dir)
+    (private_dir / "location_preferences.txt").write_text(
+        "Preferred City\nPreferred Country\n",
+        encoding="utf-8",
+    )
+    posting = FilteredPosting(
+        title="2027 Summer Intern",
+        company="Connected Co",
+        location="Other City | Preferred City, CA | Preferred Country | Another City",
+        posting_url="https://example.com/jobs/multi-location",
+        date_collected="2026-07-23",
+        source_url="https://example.com/careers",
+        included=True,
+        reasons=["Matches private preferences."],
+    )
+    write_filtered_postings_jsonl([posting], data_dir / "filtered_postings.jsonl")
+    write_source_registry([make_source()], data_dir / "source_registry.json")
+
+    dashboard = load_review_dashboard(data_dir, private_dir)
+
+    assert dashboard["postings"][0]["location"] == (
+        "Preferred City, CA | Preferred Country | …"
+    )
+    assert "Other City" not in dashboard["postings"][0]["summary"]
+    assert all(
+        "Other City" not in highlight
+        for highlight in dashboard["postings"][0]["highlights"]
+    )
+
+
 def test_render_review_page_includes_dashboard_controls():
     page = render_review_page()
     assert "Internship Review" in page
@@ -546,6 +581,82 @@ def test_render_review_page_includes_dashboard_controls():
     assert "Activity log" in page
     assert "/api/companies" in page
     assert "/api/input-file" in page
+    assert 'id="run-search"' in page
+    assert "Run search now" in page
+    assert 'postJson("/api/run-search", {})' in page
+    assert "/api/search-status" in page
+
+
+def test_manual_search_controller_runs_full_workflow_without_email(tmp_path):
+    completed = threading.Event()
+    received = {}
+
+    class Result:
+        status = "partial"
+        started_at = "2026-07-23T10:00:00+00:00"
+        finished_at = "2026-07-23T10:01:00+00:00"
+        postings_collected = 42
+        included_postings = 7
+        source_errors = 2
+
+    def fake_runner(**kwargs):
+        received.update(kwargs)
+        completed.set()
+        return Result()
+
+    controller = ManualSearchController(
+        tmp_path / "data",
+        tmp_path / "private",
+        runner=fake_runner,
+    )
+
+    started, initial = controller.start()
+    assert started is True
+    assert initial["state"] in {"running", "partial"}
+    assert completed.wait(timeout=2)
+    for _ in range(100):
+        status = controller.status()
+        if status["state"] != "running":
+            break
+        time.sleep(0.01)
+
+    assert status["state"] == "partial"
+    assert status["postings_collected"] == 42
+    assert status["included_postings"] == 7
+    assert status["source_errors"] == 2
+    assert received["generate_email"] is False
+    assert received["send_email"] is False
+
+
+def test_manual_search_controller_surfaces_failed_workflow_status(tmp_path):
+    completed = threading.Event()
+
+    class Result:
+        status = "failed"
+        started_at = "2026-07-23T10:00:00+00:00"
+        finished_at = "2026-07-23T10:01:00+00:00"
+        postings_collected = 0
+        included_postings = 0
+        source_errors = 1
+
+    def fake_runner(**kwargs):
+        completed.set()
+        return Result()
+
+    controller = ManualSearchController(
+        tmp_path / "data",
+        tmp_path / "private",
+        runner=fake_runner,
+    )
+    controller.start()
+    assert completed.wait(timeout=2)
+    for _ in range(100):
+        status = controller.status()
+        if status["state"] != "running":
+            break
+        time.sleep(0.01)
+
+    assert status["state"] == "failed"
 
 
 def test_render_review_page_uses_tabbed_navigation():

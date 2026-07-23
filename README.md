@@ -69,6 +69,34 @@ uv run internship-search run-scheduled-collection --include-job-boards
 
 This rebuilds the source registry, collects postings, updates history, filters, reports, scores, and generates the weekly email draft.
 
+Career-page collection is pagination-aware. It follows same-site next-page, numbered-page, offset, job-index, and supported load-more links, while preventing cycles and stopping with a reported warning if a source exceeds 100 pages. When a careers page links to a recognized external applicant-tracking system, the collector follows that board as well.
+
+For custom career sites, collection also opens internship detail pages before
+filtering. It distinguishes named job/program records from broad program
+overviews, skips pages that explicitly say applications are closed, and retains
+all listed offices so a multi-location role can match any allowed private
+location.
+
+For supported public boards, the collector uses complete-list APIs instead of relying on the first visible HTML page:
+
+- Greenhouse and Ashby return all currently published jobs in one board response.
+- Lever is read repeatedly with `skip`/`limit` until no later results remain.
+- Workday is read repeatedly through its public careers endpoint until its reported total is reached, with HTML parsing as a fallback.
+- Phenom career portals are read repeatedly through their public search widget
+  until the reported result total is reached.
+- Consider-hosted boards are read through every available result batch and reused across companies sharing the same board.
+- Breezy boards are treated as complete even when the board currently has no
+  published internships.
+- Public Teamtailor job indexes are recognized as complete even when they
+  currently contain no internships; matching detail pages are still opened for
+  metadata.
+- BlackRock's complete, unfiltered public search is read through its final results page before internship titles are identified locally.
+- McKinsey's public jobs API is searched for every internship match, including
+  results beyond the first visible page. Public qualification text is retained
+  locally so graduate-only roles can be removed accurately.
+
+All retrieved jobs are then filtered locally for specific undergraduate-eligible internship listings and the private location policy. Roles intended only for graduate, master's, MBA, PhD, doctoral, or other advanced-degree students are excluded; roles explicitly open to undergraduates remain eligible even when graduate students may also apply. Sites requiring authentication, blocking public access, or exceeding a safety limit are recorded in `data/collection_errors.jsonl` and included in the weekly email so they can be corrected. No collector attempts to bypass authentication or anti-bot protections.
+
 ### 5. Review results
 
 ```powershell
@@ -97,7 +125,7 @@ The main repeatable pipeline:
 1. Build source registry from seed companies
 2. Collect posting candidates
 3. Detect new, seen, changed, and missing postings
-4. Filter for likely target-cycle internship relevance and the private location policy
+4. Filter for undergraduate eligibility, likely target-cycle internship relevance, and the private location policy
 5. Generate a Markdown review report
 6. Score filtered postings with Gemini or local rules
 7. Generate a weekly email summary draft
@@ -194,6 +222,7 @@ Supported limits:
 - Job-board search runs multiple LinkedIn and Indeed query variants each collection run.
 - When the same role appears on a company career page and on LinkedIn/Indeed, collection keeps the career-page URL.
 - Run summaries and collection logs record provider limitations when LinkedIn or Indeed coverage is partial.
+- Direct company-careers collection is separate from these search-result limits and follows paginated career pages as described above.
 
 ## Review UI
 
@@ -227,7 +256,9 @@ The dashboard has five tabs:
 - **Reference Files** edits the course list, connection notes, and resume summary, and manages local supporting attachments. Uploads accept PDF, Word, text, and image files up to 5 MB each; only text, PDF, and image attachments are currently included in Gemini scoring requests.
 - **Activity Log** displays dated local changes in reverse chronological order with filter controls and cost transparency badges.
 
-The dashboard displays the active location policy and refreshes its data every 30 seconds when a text field is not focused. New companies are included in future posting searches after the next scheduled collection, or immediately after running `uv run internship-search run-scheduled-collection --include-job-boards`.
+The dashboard displays the active location policy and refreshes its data every 30 seconds when a text field is not focused. Select **Run search now** in the header to search every monitored company immediately. The search runs in the background, prevents duplicate simultaneous runs, updates the page when it finishes, and reports any company career-site access problems. A manual dashboard search does not send email; scheduled email delivery remains a separate task.
+
+New companies are included in the next scheduled collection or the next **Run search now** request. Supported public Greenhouse, Lever, Ashby, Workday, Phenom, Teamtailor, Breezy, and selected company-specific boards are scanned completely; other public career sites use bounded pagination and report partial-access issues instead of silently claiming complete coverage.
 
 Restart the UI after code changes:
 
@@ -384,7 +415,9 @@ Implemented and working locally:
 - Windows Task Scheduler automation with missed-run catch-up
 - Local review UI with status-based lists, supporting file attachments, company recommendation dismissals, activity-log filtering, and cost transparency
 
-All currently planned milestones are complete. The full automated suite passed locally on July 17, 2026 (216 tests).
+The current all-company collection and manual-run milestone is complete. The
+full automated suite passed locally on July 23, 2026 (257 tests). The planned
+Companies-page list filter remains documented under `spec/future_tasks/`.
 
 ## Privacy
 

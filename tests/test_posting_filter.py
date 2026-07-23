@@ -10,6 +10,7 @@ def make_posting(
     posting_url: str = "https://example.com/jobs/1",
     company: str = "Example Co",
     location: str = "Unknown",
+    eligibility_text: str = "",
 ) -> JobPosting:
     return JobPosting(
         title=title,
@@ -18,6 +19,7 @@ def make_posting(
         posting_url=posting_url,
         date_collected="2026-07-08",
         source_url="https://example.com/careers",
+        eligibility_text=eligibility_text,
     )
 
 
@@ -112,6 +114,59 @@ def test_evaluate_posting_includes_remote_role():
     )
 
     assert result.included is True
+
+
+def test_evaluate_posting_excludes_graduate_only_internship():
+    result = evaluate_posting(
+        make_posting(
+            title="Associate Intern",
+            location="Remote",
+            eligibility_text=(
+                "Candidates must be enrolled in an advanced graduate degree "
+                "program such as an MBA or PhD."
+            ),
+        )
+    )
+
+    assert result.included is False
+    assert any("graduate or advanced-degree" in reason for reason in result.reasons)
+
+
+def test_evaluate_posting_keeps_role_open_to_undergraduates_and_graduates():
+    result = evaluate_posting(
+        make_posting(
+            title="Business Analyst Intern",
+            location="Remote",
+            eligibility_text=(
+                "Open to undergraduate students and eligible graduate students."
+            ),
+        )
+    )
+
+    assert result.included is True
+
+
+def test_evaluate_posting_excludes_graduate_program_in_title():
+    result = evaluate_posting(
+        make_posting(
+            title="Global Helpdesk Intern - Graduate Program",
+            location="Remote",
+        )
+    )
+
+    assert result.included is False
+
+
+def test_evaluate_posting_excludes_jd_internship():
+    result = evaluate_posting(
+        make_posting(
+            title="Tax-JD Intern - Summer 2027",
+            location="Remote",
+        )
+    )
+
+    assert result.included is False
+    assert any("graduate or advanced-degree" in reason for reason in result.reasons)
 
 
 def test_filter_postings_writes_included_and_excluded_outputs(tmp_path):

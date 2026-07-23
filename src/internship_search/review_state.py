@@ -10,6 +10,11 @@ from pathlib import Path
 
 from internship_search.email_summary import read_scored_postings_jsonl, read_sent_history
 from internship_search.job_collector import read_postings_jsonl
+from internship_search.location_filter import (
+    DEFAULT_LOCATION_PREFERENCES_PATH,
+    matches_allowed_location,
+    summarize_allowed_locations,
+)
 from internship_search.posting_filter import read_filtered_postings_jsonl
 from internship_search.posting_history import inactive_posting_urls, read_history
 from internship_search.private_inputs import Preferences, load_private_inputs
@@ -79,7 +84,8 @@ def load_review_dashboard(
     filters: ReviewFilters | None = None,
 ) -> dict:
     data_path = Path(data_dir)
-    private_inputs = load_private_inputs(private_dir)
+    private_path = Path(private_dir)
+    private_inputs = load_private_inputs(private_path)
     scored_by_url = {
         posting.posting_url: posting
         for posting in read_scored_postings_jsonl(data_path / "scored_postings.jsonl")
@@ -135,11 +141,16 @@ def load_review_dashboard(
         if norm_name not in my_company_names and norm_name not in dismissed_normalized:
             suggested_companies_list.append(item)
 
+    location_preferences_path = private_path / "location_preferences.txt"
     postings: list[ReviewablePosting] = []
     for filtered in read_filtered_postings_jsonl(data_path / "filtered_postings.jsonl"):
         if not filtered.included:
             continue
-        if not posting_matches_location_policy(filtered.location, filtered.title):
+        if not posting_matches_location_policy(
+            filtered.location,
+            filtered.title,
+            preferences_path=location_preferences_path,
+        ):
             continue
         scored = scored_by_url.get(filtered.posting_url)
         norm_company = normalize_company_name(filtered.company)
@@ -167,11 +178,33 @@ def load_review_dashboard(
         )
 
     postings.sort(key=review_posting_sort_key)
-    filtered_postings = filter_review_postings(postings, filters)
+    filtered_postings = filter_review_postings(
+        postings,
+        filters,
+        preferences_path=location_preferences_path,
+    )
     companies = sorted({posting.company for posting in postings})
 
+    posting_payloads = []
+    for posting in filtered_postings:
+        payload = asdict(posting)
+        display_location = summarize_allowed_locations(
+            posting.location,
+            preferences_path=location_preferences_path,
+        )
+        payload["location"] = display_location
+        if display_location != posting.location:
+            payload["summary"] = payload["summary"].replace(
+                posting.location, display_location
+            )
+            payload["highlights"] = [
+                highlight.replace(posting.location, display_location)
+                for highlight in payload["highlights"]
+            ]
+        posting_payloads.append(payload)
+
     return {
-        "postings": [asdict(posting) for posting in filtered_postings],
+        "postings": posting_payloads,
         "preferences": {
             "likes": private_inputs.preferences.likes,
             "dislikes": private_inputs.preferences.dislikes,
@@ -379,6 +412,8 @@ def classify_email_status(
 def filter_review_postings(
     postings: list[ReviewablePosting],
     filters: ReviewFilters | None = None,
+    *,
+    preferences_path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH,
 ) -> list[ReviewablePosting]:
     active = filters or ReviewFilters()
     filtered: list[ReviewablePosting] = []
@@ -397,7 +432,11 @@ def filter_review_postings(
                 continue
             if active.included == "excluded" and posting.included:
                 continue
-        if not matches_location_filter(posting, active.location):
+        if not matches_location_filter(
+            posting,
+            active.location,
+            preferences_path=preferences_path,
+        ):
             continue
         filtered.append(posting)
     return filtered
@@ -419,14 +458,26 @@ def matches_connection_filter(posting: ReviewablePosting, connection: str | None
     return True
 
 
-def matches_location_filter(posting: ReviewablePosting, location: str | None) -> bool:
-    return posting_matches_location_policy(posting.location, posting.title)
+def matches_location_filter(
+    posting: ReviewablePosting,
+    location: str | None,
+    *,
+    preferences_path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH,
+) -> bool:
+    return posting_matches_location_policy(
+        posting.location,
+        posting.title,
+        preferences_path=preferences_path,
+    )
 
 
-def posting_matches_location_policy(location: str, title: str) -> bool:
-    from internship_search.location_filter import matches_allowed_location
-
-    return matches_allowed_location(location, title)
+def posting_matches_location_policy(
+    location: str,
+    title: str,
+    *,
+    preferences_path: Path | str = DEFAULT_LOCATION_PREFERENCES_PATH,
+) -> bool:
+    return matches_allowed_location(location, title, preferences_path=preferences_path)
 
 
 def build_review_summary(postings: list[ReviewablePosting]) -> dict[str, int]:

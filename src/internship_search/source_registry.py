@@ -42,9 +42,12 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         collector="pwc_jobs",
     ),
     "blackrock": SourceMetadata(
-        careers_url="https://careers.blackrock.com/search-jobs?keywords=2027%20intern",
+        careers_url="https://careers.blackrock.com/search-jobs",
         source_type="company_careers_search",
-        notes="Students page is JavaScript-heavy; search results expose static job links.",
+        notes=(
+            "Scan every page of the complete public jobs search, then identify "
+            "internship opportunities locally so keyword variations are not missed."
+        ),
         alternate_careers_urls=(
             "https://careers.blackrock.com/en/students-and-graduates",
         ),
@@ -67,16 +70,20 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
     "mckinsey & co": SourceMetadata(
         careers_url="https://www.mckinsey.com/careers/search-jobs?keywords=intern",
         source_type="company_careers_search",
-        notes="Undergraduate page often times out; search endpoint is more reliable.",
+        notes="Uses McKinsey's public jobs API for complete internship search results.",
         alternate_careers_urls=(
             "https://www.mckinsey.com/careers/students/undergraduate-degree",
         ),
+        collector="mckinsey_jobs",
     ),
     "pixar": SourceMetadata(
-        careers_url="https://jobs.disney.com/en/search-jobs?keywords=pixar%20intern",
+        careers_url="https://jobs.disneycareers.com/search-jobs?keywords=pixar%20intern",
         source_type="company_careers_search",
-        notes="Pixar internships are posted on the Disney careers portal.",
-        alternate_careers_urls=("https://www.pixar.com/careers",),
+        notes="Pixar openings are searched on Disney's current careers portal.",
+        alternate_careers_urls=(
+            "https://www.pixar.com/internships",
+            "https://www.pixar.com/careers",
+        ),
     ),
     "levi's": SourceMetadata(
         careers_url="https://careers.levistrauss.com/go/Internships-%26-Entry-Level-Opportunities/8775602/",
@@ -84,30 +91,149 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         notes="Levi Strauss internships and entry-level programs page.",
     ),
     "bluevine": SourceMetadata(
-        careers_url="https://www.bluevine.com/careers",
-        source_type="company_careers_page",
-        notes="Bluevine careers page.",
+        careers_url="https://job-boards.greenhouse.io/bluevineus",
+        source_type="company_careers_search",
+        notes="Complete public Greenhouse board plus the official global careers page.",
+        alternate_careers_urls=(
+            "https://www.bluevine.com/careers",
+        ),
     ),
     "stripe": SourceMetadata(
-        careers_url="https://stripe.com/jobs/search?query=intern",
+        careers_url="https://job-boards.greenhouse.io/stripe",
         source_type="company_careers_search",
-        notes="Stripe job search filtered for internships.",
+        notes="Complete Stripe public Greenhouse job board.",
     ),
     "robinhood": SourceMetadata(
-        careers_url="https://careers.robinhood.com",
-        source_type="company_careers_page",
-        notes="Robinhood careers portal.",
+        careers_url="https://job-boards.greenhouse.io/robinhood",
+        source_type="company_careers_search",
+        notes="Complete Robinhood public Greenhouse job board.",
     ),
     "patreon": SourceMetadata(
-        careers_url="https://www.patreon.com/careers",
-        source_type="company_careers_page",
-        notes="Patreon careers page.",
+        careers_url="https://jobs.ashbyhq.com/patreon",
+        source_type="company_careers_search",
+        notes="Complete Patreon public Ashby job board.",
     ),
     "relling": SourceMetadata(
         careers_url="https://www.ycombinator.com/companies/relling/jobs",
         source_type="company_careers_page",
         notes="Official Y Combinator jobs page for Relling.",
         collector="ycombinator_jobs",
+    ),
+    "khan academy": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/khanacademy",
+        source_type="company_careers_search",
+        notes="Complete Khan Academy public Greenhouse job board.",
+    ),
+    "palantir": SourceMetadata(
+        careers_url="https://jobs.lever.co/palantir",
+        source_type="company_careers_search",
+        notes="Complete Palantir public Lever job board.",
+    ),
+    "applied intuition": SourceMetadata(
+        careers_url="https://jobs.ashbyhq.com/applied",
+        source_type="company_careers_search",
+        notes="Complete Applied Intuition public Ashby job board.",
+    ),
+    "flexport": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/flexport",
+        source_type="company_careers_search",
+        notes="Complete Flexport public Greenhouse job board.",
+    ),
+    "spacex": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/spacex",
+        source_type="company_careers_search",
+        notes="Complete SpaceX public Greenhouse job board.",
+    ),
+    "form energy": SourceMetadata(
+        careers_url="https://formenergy.com/careers/open-jobs/",
+        source_type="company_careers_search",
+        notes="Form Energy's official open-jobs page.",
+        alternate_careers_urls=("https://formenergy.com/careers/",),
+    ),
+    "kobold metals": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/koboldmetals",
+        source_type="company_careers_search",
+        notes="Complete KoBold Metals public Greenhouse job board.",
+    ),
+    "upside foods": SourceMetadata(
+        careers_url="https://upsidefoods.com/careers/",
+        source_type="company_careers_page",
+        notes="UPSIDE Foods official careers page; its former Greenhouse board is retired.",
+    ),
+    "ansa bio": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/ansabiotechnologies",
+        source_type="company_careers_search",
+        notes="Complete Ansa Biotechnologies public Greenhouse job board.",
+    ),
+    "rigetti": SourceMetadata(
+        careers_url="https://jobs.lever.co/rigetti",
+        source_type="company_careers_search",
+        notes="Complete Rigetti public Lever job board.",
+    ),
+    "boeing": SourceMetadata(
+        careers_url="https://jobs.boeing.com/category/internship-jobs/185/9287/1/content",
+        source_type="company_careers_search",
+        notes="Official Boeing internship-job category with bounded pagination.",
+        alternate_careers_urls=("https://jobs.boeing.com/en/internships",),
+    ),
+    "united airlines": SourceMetadata(
+        careers_url=(
+            "https://careers.united.com/us/en/students/c/"
+            "student-and-early-career-jobs"
+        ),
+        source_type="company_careers_search",
+        notes="Official United student and early-career opportunities.",
+        alternate_careers_urls=(
+            "https://careers.united.com/us/en/search-results?keywords=intern",
+        ),
+    ),
+    "goldman sachs": SourceMetadata(
+        careers_url=(
+            "https://www.goldmansachs.com/careers/students/"
+            "programs-and-internships"
+        ),
+        source_type="company_careers_page",
+        notes="Official Goldman Sachs programs and internships index.",
+    ),
+    "bank of america": SourceMetadata(
+        careers_url="https://careers.bankofamerica.com/en-us/students",
+        source_type="company_careers_page",
+        notes="Official Bank of America student opportunities and program links.",
+        alternate_careers_urls=(
+            "https://careers.bankofamerica.com/en-us/job-search",
+        ),
+    ),
+    "northrop grumman": SourceMetadata(
+        careers_url="https://jobs.northropgrumman.com/careers?query=intern",
+        source_type="company_careers_search",
+        notes="Official Northrop Grumman job search filtered for internships.",
+        alternate_careers_urls=(
+            "https://www.northropgrumman.com/careers/"
+            "students-and-entry-level-careers-start-a-career-of-purpose",
+        ),
+    ),
+    "rtx": SourceMetadata(
+        careers_url=(
+            "https://careers.rtx.com/global/en/search-results?keywords=intern"
+        ),
+        source_type="company_careers_search",
+        notes="Complete public RTX Phenom search filtered for internships.",
+    ),
+    "dymo / newell brands": SourceMetadata(
+        careers_url="https://jobs.newellbrands.com/?locale=en_US",
+        source_type="company_careers_search",
+        notes="Official Newell Brands jobs portal.",
+        alternate_careers_urls=(
+            "https://careers.newellbrands.com/early-careers/",
+        ),
+    ),
+    "deloitte": SourceMetadata(
+        careers_url="https://www.deloitte.com/us/en/careers/internships.html",
+        source_type="company_careers_page",
+        notes="Official Deloitte US student internships page.",
+        alternate_careers_urls=(
+            "https://www.deloitte.com/us/en/careers/student-careers.html",
+        ),
     ),
 }
 

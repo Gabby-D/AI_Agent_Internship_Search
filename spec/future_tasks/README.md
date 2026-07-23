@@ -4,7 +4,9 @@ Use this folder for planned work that is not ready to implement yet.
 
 ## Future Roadmap
 
-The core implementation, operational validation, release-readiness work, and currently planned review-workflow improvements are complete. No future implementation task is currently scheduled.
+The core implementation, operational validation, and release-readiness work are
+complete. A company-list search improvement is planned after the current
+career-page collection work is finished.
 
 The current company list remains seed input. Discovery, internet search, and job-board providers can continue expanding the registry over time.
 
@@ -16,7 +18,7 @@ The current company list remains seed input. Discovery, internet search, and job
 
 ### Medium Priority
 
-1. None currently listed.
+1. [044 - Company List Search](044-company-list-search.md)
 
 ### Lower Priority
 
@@ -24,7 +26,8 @@ The current company list remains seed input. Discovery, internet search, and job
 
 ## Suggested Order
 
-1. None.
+1. Add company-list search after the current career-page collection task is
+   finished.
 
 ## Notes
 

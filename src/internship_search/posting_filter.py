@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -39,6 +40,33 @@ TARGET_YEAR_TERMS = {
     "summer 2027",
 }
 
+UNDERGRADUATE_ELIGIBILITY_PATTERNS = (
+    re.compile(r"\bundergraduate\b", re.IGNORECASE),
+    re.compile(r"\bbachelor(?:'s|s)?\b", re.IGNORECASE),
+    re.compile(r"\bcollege (?:student|students|degree)\b", re.IGNORECASE),
+)
+
+GRADUATE_ONLY_PATTERNS = (
+    re.compile(r"\bgraduate (?:degree|program|student|students)\b", re.IGNORECASE),
+    re.compile(r"\badvanced graduate\b", re.IGNORECASE),
+    re.compile(r"\bpostgraduate\b", re.IGNORECASE),
+    re.compile(r"\bmaster(?:'s|s)?\b", re.IGNORECASE),
+    re.compile(r"\bmba\b", re.IGNORECASE),
+    re.compile(r"\bph\.?d\.?\b", re.IGNORECASE),
+    re.compile(r"\bdoctoral\b|\bdoctorate\b", re.IGNORECASE),
+    re.compile(r"\bj\.?d\.?\b", re.IGNORECASE),
+    re.compile(r"\bll\.?m\.?\b", re.IGNORECASE),
+    re.compile(r"\bm\.?d\.?\b", re.IGNORECASE),
+    re.compile(r"\blaw (?:school|student|students)\b", re.IGNORECASE),
+    re.compile(r"\bmedical (?:school|student|students)\b", re.IGNORECASE),
+)
+
+GRADUATE_ONLY_REASON = (
+    "Excluded because the role is intended for graduate or advanced-degree students, "
+    "not undergraduate applicants."
+)
+
+
 @dataclass(frozen=True)
 class FilteredPosting:
     title: str
@@ -49,6 +77,7 @@ class FilteredPosting:
     source_url: str
     included: bool
     reasons: list[str]
+    eligibility_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -133,6 +162,9 @@ def evaluate_posting(posting: JobPosting) -> FilteredPosting:
             f"Listing type: {listing_category_label(classification.category)}."
         )
         reasons.extend(classification.reasons)
+        if is_graduate_only_posting(posting):
+            reasons.append(GRADUATE_ONLY_REASON)
+            return to_filtered_posting(posting=posting, included=False, reasons=reasons)
         if not matches_allowed_location(posting.location, posting.title):
             reasons.append(LOCATION_FILTER_REASON)
             return to_filtered_posting(posting=posting, included=False, reasons=reasons)
@@ -153,6 +185,15 @@ def mentions_internship_terms(searchable: str) -> bool:
         term in searchable
         for term in INTERNSHIP_TERMS | EARLY_CAREER_TERMS | TARGET_YEAR_TERMS
     )
+
+
+def is_graduate_only_posting(posting: JobPosting) -> bool:
+    """Return True for advanced-degree roles that are not open to undergraduates."""
+
+    searchable = f"{posting.title} {posting.eligibility_text}".strip()
+    if any(pattern.search(searchable) for pattern in UNDERGRADUATE_ELIGIBILITY_PATTERNS):
+        return False
+    return any(pattern.search(searchable) for pattern in GRADUATE_ONLY_PATTERNS)
 
 
 def write_filtered_postings_jsonl(
@@ -213,6 +254,7 @@ def build_searchable_text(posting: JobPosting) -> str:
             posting.company,
             posting.location,
             posting.posting_url,
+            posting.eligibility_text,
         ]
     ).lower()
 
@@ -231,6 +273,7 @@ def to_filtered_posting(
         source_url=posting.source_url,
         included=included,
         reasons=reasons,
+        eligibility_text=posting.eligibility_text,
     )
 
 

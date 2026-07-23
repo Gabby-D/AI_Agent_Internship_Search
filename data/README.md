@@ -12,13 +12,17 @@ Current generated files:
 - `discovered_companies.md` contains a readable review report for suggested companies.
 - `internet_search_results.jsonl` contains structured careers-page search results.
 - `job_board_postings.jsonl` contains posting candidates found through public job-board search results.
-- `postings.jsonl` contains first-pass posting candidates collected from the source registry.
-- `collection_errors.jsonl` contains source collection failures from the latest collection run.
+- `postings.jsonl` contains posting candidates collected across career-page
+  pagination, supported public ATS boards, and open internship detail pages;
+  multi-office roles retain all discovered locations and public eligibility
+  text when a source provides it.
+- `collection_errors.jsonl` contains source access, parsing, API, and pagination-limit diagnostics from the latest collection run.
 - `posting_history.json` contains stable posting history with first-seen and last-seen dates.
 - `posting_changes.jsonl` contains the latest run's new, seen, changed, and missing status records.
 - `new_postings.jsonl` contains postings discovered for the first time in the latest run.
-- `filtered_postings.jsonl` contains included posting candidates with inclusion reasons.
-- `excluded_postings.jsonl` contains excluded posting candidates with exclusion reasons.
+- `filtered_postings.jsonl` contains undergraduate-eligible posting candidates with inclusion reasons.
+- `excluded_postings.jsonl` contains excluded posting candidates, including
+  graduate- and advanced-degree-only internships, with exclusion reasons.
 - `monitored_no_openings.jsonl` contains seed companies that have no specific matching opening or could not be checked.
 - `latest_report.md` contains the readable local review report.
 - `scored_postings.jsonl` contains fit scores, fit levels, explanations, and gaps for filtered postings.

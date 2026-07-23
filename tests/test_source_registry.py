@@ -25,7 +25,7 @@ def test_build_company_source_uses_known_seed_metadata():
 
     assert source.company == "BlackRock"
     assert source.website == "https://www.blackrock.com"
-    assert source.careers_url == "https://careers.blackrock.com/search-jobs?keywords=2027%20intern"
+    assert source.careers_url == "https://careers.blackrock.com/search-jobs"
     assert source.source_type == "company_careers_search"
     assert source.collector == "blackrock_jobs"
     assert source.origin == "seed"
@@ -39,6 +39,71 @@ def test_build_company_source_uses_known_seed_metadata_for_pwc():
 
     assert source.careers_url == "https://jobs-us.pwc.com/us/en/search-results?keywords=intern"
     assert source.collector == "pwc_jobs"
+
+
+def test_build_company_source_uses_complete_mckinsey_api_collector():
+    source = build_company_source(
+        Company(
+            name="McKinsey & Co",
+            website="https://www.mckinsey.com",
+            has_connection=False,
+        )
+    )
+
+    assert source.careers_url.startswith(
+        "https://www.mckinsey.com/careers/search-jobs"
+    )
+    assert source.collector == "mckinsey_jobs"
+
+
+def test_known_companies_use_complete_public_ats_boards():
+    expected = {
+        "Ansa Bio": "greenhouse.io/ansabiotechnologies",
+        "Applied Intuition": "ashbyhq.com/applied",
+        "Flexport": "greenhouse.io/flexport",
+        "Khan Academy": "greenhouse.io/khanacademy",
+        "KoBold Metals": "greenhouse.io/koboldmetals",
+        "Palantir": "lever.co/palantir",
+        "Patreon": "ashbyhq.com/patreon",
+        "Rigetti": "lever.co/rigetti",
+        "Robinhood": "greenhouse.io/robinhood",
+        "SpaceX": "greenhouse.io/spacex",
+        "Stripe": "greenhouse.io/stripe",
+    }
+
+    for company_name, expected_url_part in expected.items():
+        source = build_company_source(
+            Company(
+                name=company_name,
+                website=f"https://{company_name.lower().replace(' ', '')}.example",
+                has_connection=False,
+            )
+        )
+        assert expected_url_part in source.careers_url
+        assert source.source_type == "company_careers_search"
+
+
+def test_retired_or_stale_career_urls_are_replaced_with_current_official_pages():
+    expected = {
+        "Bank of America": "careers.bankofamerica.com/en-us/students",
+        "Boeing": "jobs.boeing.com/category/internship-jobs",
+        "Deloitte": "deloitte.com/us/en/careers/internships",
+        "DYMO / Newell Brands": "jobs.newellbrands.com",
+        "Northrop Grumman": "jobs.northropgrumman.com/careers",
+        "Pixar": "jobs.disneycareers.com/search-jobs",
+        "RTX": "careers.rtx.com/global/en/search-results",
+        "Upside Foods": "upsidefoods.com/careers",
+    }
+
+    for company_name, expected_url_part in expected.items():
+        source = build_company_source(
+            Company(
+                name=company_name,
+                website="https://stale.example",
+                has_connection=False,
+            )
+        )
+        assert expected_url_part in source.careers_url
 
 
 def test_build_company_source_falls_back_to_website_for_unknown_company():

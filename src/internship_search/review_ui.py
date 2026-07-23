@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import webbrowser
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from internship_search.private_inputs import (
@@ -46,6 +49,90 @@ class ReviewUIServer:
     port: int
     data_dir: Path
     private_dir: Path
+
+
+class ManualSearchController:
+    """Run one complete collection workflow in the background at a time."""
+
+    def __init__(
+        self,
+        data_dir: Path,
+        private_dir: Path,
+        runner: Callable[..., object] | None = None,
+    ) -> None:
+        self.data_dir = data_dir
+        self.private_dir = private_dir
+        self._runner = runner
+        self._lock = threading.Lock()
+        self._state: dict[str, object] = {
+            "state": "idle",
+            "message": "Ready to search all monitored companies.",
+            "started_at": "",
+            "finished_at": "",
+        }
+
+    def status(self) -> dict[str, object]:
+        with self._lock:
+            return dict(self._state)
+
+    def start(self) -> tuple[bool, dict[str, object]]:
+        with self._lock:
+            if self._state["state"] == "running":
+                return False, dict(self._state)
+            self._state = {
+                "state": "running",
+                "message": "Searching every monitored company. This can take several minutes.",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": "",
+            }
+        threading.Thread(target=self._run, name="manual-internship-search", daemon=True).start()
+        return True, self.status()
+
+    def _run(self) -> None:
+        try:
+            runner = self._runner
+            if runner is None:
+                from internship_search.scheduled_collection import run_scheduled_collection
+
+                runner = run_scheduled_collection
+            result = runner(
+                private_dir=self.private_dir,
+                data_dir=self.data_dir,
+                generate_email=False,
+                send_email=False,
+            )
+            state = {
+                "success": "succeeded",
+                "partial": "partial",
+            }.get(result.status, "failed")
+            summary_label = "Search failed" if state == "failed" else "Search complete"
+            message = (
+                f"{summary_label}: {result.included_postings} matching internships found "
+                f"from {result.postings_collected} job candidates."
+            )
+            if result.source_errors:
+                message += (
+                    f" {result.source_errors} source issue"
+                    f"{'s' if result.source_errors != 1 else ''} were recorded for review."
+                )
+            completed = {
+                "state": state,
+                "message": message,
+                "started_at": result.started_at,
+                "finished_at": result.finished_at,
+                "postings_collected": result.postings_collected,
+                "included_postings": result.included_postings,
+                "source_errors": result.source_errors,
+            }
+        except Exception as error:  # noqa: BLE001 - surface background failures in the UI.
+            completed = {
+                "state": "failed",
+                "message": f"Search failed: {error}",
+                "started_at": str(self.status().get("started_at", "")),
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }
+        with self._lock:
+            self._state = completed
 
 
 def start_review_ui(
@@ -93,6 +180,8 @@ def is_address_in_use(error: OSError) -> bool:
 
 
 def _build_handler(data_path: Path, private_path: Path):
+    search_controller = ManualSearchController(data_path, private_path)
+
     class ReviewUIHandler(BaseHTTPRequestHandler):
         data_dir = data_path
         private_dir = private_path
@@ -106,6 +195,9 @@ def _build_handler(data_path: Path, private_path: Path):
                 filters = parse_review_filters(parse_qs(parsed.query))
                 payload = load_review_dashboard(self.data_dir, self.private_dir, filters=filters)
                 self._send_json(payload)
+                return
+            if parsed.path == "/api/search-status":
+                self._send_json({"ok": True, **search_controller.status()})
                 return
             if parsed.path == "/api/inputs":
                 self._send_json(self._input_payload())
@@ -151,6 +243,10 @@ def _build_handler(data_path: Path, private_path: Path):
                 return
             if parsed.path == "/api/note":
                 self._handle_note_update(payload)
+                return
+            if parsed.path == "/api/run-search":
+                started, status = search_controller.start()
+                self._send_json({"ok": True, "started": started, **status})
                 return
             self._send_error(404, "Not found")
 
@@ -511,7 +607,14 @@ def render_review_page() -> str:
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     .app-shell { max-width: 1080px; margin: 0 auto; padding: 32px 24px 72px; }
-    header.topbar h1 { margin: 0 0 12px; font-size: 22px; font-weight: 600; }
+    header.topbar { margin-bottom: 12px; }
+    .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    header.topbar h1 { margin: 0; font-size: 22px; font-weight: 600; }
+    .search-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    #search-status { color: var(--text-muted); font-size: 13px; max-width: 520px; }
+    #search-status.error { color: var(--danger); }
+    #search-status.message { color: var(--success); }
+    button:disabled { cursor: wait; opacity: .65; }
     .policy-banner {
       background: var(--accent-soft); color: #3730a3; border-radius: var(--radius);
       padding: 10px 14px; font-size: 13px; margin: 0 0 24px;
@@ -596,7 +699,13 @@ def render_review_page() -> str:
 
   <div class="app-shell">
     <header class="topbar">
-      <h1>Internship Review</h1>
+      <div class="topbar-row">
+        <h1>Internship Review</h1>
+        <div class="search-controls">
+          <span id="search-status">Ready to search all monitored companies.</span>
+          <button id="run-search" class="primary" type="button">Run search now</button>
+        </div>
+      </div>
       <p id="location-policy" class="policy-banner"></p>
     </header>
     <nav class="tabs" role="tablist">
@@ -632,6 +741,7 @@ def render_review_page() -> str:
       { key: "archived", title: "Archived", match: posting => posting.review_status === "archived" }
     ];
     let dashboardIndustries = [];
+    let lastRenderedSearchCompletion = "";
 
     function orderedStatusOptions(statusOptions) {
       const remaining = statusOptions.filter(status => !statusOrder.includes(status));
@@ -670,6 +780,41 @@ def render_review_page() -> str:
       renderCompaniesPanel(data.monitored_companies || [], data.suggested_companies || []);
       renderActivityLog(data.activity || []);
       renderPostings(data.postings, data.status_options);
+    }
+
+    function renderSearchStatus(status) {
+      const button = document.getElementById("run-search");
+      const message = document.getElementById("search-status");
+      if (!button || !message) return;
+      const running = status.state === "running";
+      button.disabled = running;
+      button.textContent = running ? "Searching…" : "Run search now";
+      message.className = status.state === "failed" ? "error" :
+        (status.state === "succeeded" || status.state === "partial" ? "message" : "");
+      message.textContent = status.message || "Ready to search all monitored companies.";
+    }
+
+    async function loadSearchStatus() {
+      try {
+        const response = await fetch(`/api/search-status?ts=${Date.now()}`);
+        const status = await response.json();
+        renderSearchStatus(status);
+        return status;
+      } catch (error) {
+        renderSearchStatus({ state: "failed", message: `Could not check search status: ${error}` });
+        return { state: "failed" };
+      }
+    }
+
+    async function runSearchNow() {
+      const button = document.getElementById("run-search");
+      if (button) button.disabled = true;
+      try {
+        const status = await postJson("/api/run-search", {});
+        renderSearchStatus(status);
+      } catch (error) {
+        renderSearchStatus({ state: "failed", message: `Could not start search: ${error}` });
+      }
     }
 
     function escapeHtml(value) {
@@ -1479,13 +1624,27 @@ def render_review_page() -> str:
     }
 
     initTabs();
+    document.getElementById("run-search").addEventListener("click", runSearchNow);
     initCompaniesPanel();
     loadDashboard();
+    loadSearchStatus();
     setInterval(() => {
       if (!document.querySelector("textarea:focus, input:focus")) {
         loadDashboard();
       }
     }, 30000);
+    setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      const status = await loadSearchStatus();
+      if (
+        (status.state === "succeeded" || status.state === "partial") &&
+        status.finished_at &&
+        status.finished_at !== lastRenderedSearchCompletion
+      ) {
+        lastRenderedSearchCompletion = status.finished_at;
+        loadDashboard();
+      }
+    }, 3000);
   </script>
 </body>
 </html>"""
