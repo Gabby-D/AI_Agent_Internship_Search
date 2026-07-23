@@ -214,10 +214,15 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
     ),
     "rtx": SourceMetadata(
         careers_url=(
-            "https://careers.rtx.com/global/en/search-results?keywords=intern"
+            "https://careers.rtx.com/global/en/campus?keywords=intern"
         ),
         source_type="company_careers_search",
-        notes="Complete public RTX Phenom search filtered for internships.",
+        notes=(
+            "Uses RTX's accessible campus page to configure the complete public "
+            "Phenom internship search without relying on Cloudflare-blocked "
+            "search-result HTML."
+        ),
+        collector="phenom_api",
     ),
     "dymo / newell brands": SourceMetadata(
         careers_url="https://jobs.newellbrands.com/?locale=en_US",

@@ -91,7 +91,7 @@ def test_retired_or_stale_career_urls_are_replaced_with_current_official_pages()
         "DYMO / Newell Brands": "jobs.newellbrands.com",
         "Northrop Grumman": "jobs.northropgrumman.com/careers",
         "Pixar": "jobs.disneycareers.com/search-jobs",
-        "RTX": "careers.rtx.com/global/en/search-results",
+        "RTX": "careers.rtx.com/global/en/campus",
         "Upside Foods": "upsidefoods.com/careers",
     }
 
@@ -104,6 +104,18 @@ def test_retired_or_stale_career_urls_are_replaced_with_current_official_pages()
             )
         )
         assert expected_url_part in source.careers_url
+
+
+def test_rtx_uses_accessible_phenom_bootstrap_page():
+    source = build_company_source(
+        Company(name="RTX", website="", has_connection=False)
+    )
+
+    assert source.collector == "phenom_api"
+    assert source.careers_url == (
+        "https://careers.rtx.com/global/en/campus?keywords=intern"
+    )
+    assert source.alternate_careers_urls == ()
 
 
 def test_build_company_source_falls_back_to_website_for_unknown_company():

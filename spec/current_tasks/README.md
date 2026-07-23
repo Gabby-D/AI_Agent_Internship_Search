@@ -4,15 +4,20 @@ Use this folder for tasks that are actively being designed or implemented.
 
 ## Current Milestone
 
-Maintain the completed local internship-search workflow and add new work when needed.
+Recover blocked or unsupported company career sources, starting with RTX.
 
 ## Task Order
 
-No active current tasks. All tasks through `040-internship-focused-summaries.md` are recorded under `spec/completed_tasks/`.
+1. [`046-general-career-source-recovery.md`](046-general-career-source-recovery.md)
+
+Completed work is recorded under `spec/completed_tasks/`.
 
 ## Current Focus
 
-No task is currently active.
+Use RTX's public recruiting-platform interface without depending on its
+Cloudflare-blocked search-result HTML. Preserve complete pagination and visible
+diagnostics, then apply the same evidence-led process to the next affected
+company.
 
 ## Code Style Instructions
 
