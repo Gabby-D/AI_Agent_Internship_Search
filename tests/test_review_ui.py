@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from dataclasses import replace
 
 from internship_search.email_summary import write_sent_history
 from internship_search.fit_scoring import ScoredPosting, write_scored_postings_jsonl
@@ -287,6 +288,33 @@ def test_load_review_dashboard_uses_live_company_connection_status(tmp_path):
             "has_scan_results": False,
         },
     ]
+
+
+def test_load_review_dashboard_hides_low_fit_scored_role(tmp_path):
+    data_dir = tmp_path / "data"
+    private_dir = tmp_path / "private"
+    write_private_inputs(private_dir)
+    posting = make_filtered_posting(title="Generic Recruiting Intern")
+    write_filtered_postings_jsonl(
+        [posting],
+        data_dir / "filtered_postings.jsonl",
+    )
+    write_scored_postings_jsonl(
+        [
+            replace(
+                make_scored_posting(),
+                title="Generic Recruiting Intern",
+                score=35,
+                fit_level="weak",
+            )
+        ],
+        data_dir / "scored_postings.jsonl",
+    )
+    write_source_registry([make_source()], data_dir / "source_registry.json")
+
+    dashboard = load_review_dashboard(data_dir, private_dir)
+
+    assert dashboard["postings"] == []
 
 
 def test_load_review_dashboard_includes_latest_company_scan_status(tmp_path):

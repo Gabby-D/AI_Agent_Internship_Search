@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import base64
+import gzip
 import html as html_module
 import json
 import re
+import shutil
+import subprocess
+import tempfile
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -29,6 +35,7 @@ from internship_search.source_registry import CompanySource, normalize_company_n
 FetchPage = Callable[[str], str]
 PostJson = Callable[[str, dict[str, Any]], dict[str, Any]]
 GetJson = Callable[[str], Any]
+GetJsonWithHeaders = Callable[[str, dict[str, str]], Any]
 
 BLACKROCK_JOB_PATH_RE = re.compile(r"/job/[^\"'\s<>]+", re.IGNORECASE)
 BLACKROCK_SEARCH_RESULT_RE = re.compile(
@@ -118,6 +125,9 @@ EXHAUSTIVE_API_STRATEGIES = {
     "bayer_successfactors",
     "breezy_html",
     "consider_board",
+    "adp_workforce_now",
+    "eightfold_pcsx",
+    "general_dynamics_jobs",
     "greenhouse_api",
     "goldman_higher",
     "lemonade_jobs",
@@ -311,6 +321,12 @@ def run_collector_strategy(
         return collect_ycombinator_postings(source, html, collected_date)
     if strategy == "workday_api":
         return collect_workday_postings(source, collected_date)
+    if strategy == "adp_workforce_now":
+        return collect_adp_workforce_now_postings(source, collected_date)
+    if strategy == "eightfold_pcsx":
+        return collect_eightfold_postings(source, collected_date)
+    if strategy == "general_dynamics_jobs":
+        return collect_general_dynamics_postings(source, collected_date)
     if strategy == "avature_rss":
         return collect_avature_rss_postings(source, html, collected_date)
     if strategy == "oracle_recruiting_api":
@@ -779,6 +795,388 @@ def collect_greenhouse_postings(
             )
         )
     return postings
+
+
+def collect_adp_workforce_now_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    get_json: GetJson | None = None,
+) -> list[JobPosting]:
+    """Page through an ADP Workforce Now public career center."""
+
+    parsed = urlparse(source.careers_url)
+    query = parse_qs(parsed.query)
+    cid = next(iter(query.get("cid", [])), "").strip()
+    cc_id = next(iter(query.get("ccId", [])), "").strip()
+    lang = next(iter(query.get("lang", ["en_US"])), "en_US").strip() or "en_US"
+    if not cid or not cc_id:
+        raise ValueError("ADP career-center cid and ccId could not be determined.")
+
+    loader = get_json or get_public_json
+    endpoint = (
+        f"{parsed.scheme}://{parsed.netloc}/mascsr/default/careercenter/public/"
+        "events/staffing/v1/job-requisitions"
+    )
+    page_size = 100
+    skip = 0
+    postings: list[JobPosting] = []
+    seen_ids: set[str] = set()
+    exhausted = False
+    for _ in range(MAX_ATS_API_PAGES):
+        params = {
+            "cid": cid,
+            "ccId": cc_id,
+            "lang": lang,
+            "locale": lang,
+            "$top": page_size,
+            "$skip": skip,
+        }
+        payload = loader(f"{endpoint}?{urlencode(params)}")
+        if not isinstance(payload, dict) or not isinstance(
+            payload.get("jobRequisitions"), list
+        ):
+            raise ValueError("ADP Workforce Now API returned an unexpected response.")
+        records = payload["jobRequisitions"]
+        if not records:
+            exhausted = True
+            break
+        new_records = 0
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            item_id = str(record.get("itemID") or "").strip()
+            if not item_id or item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
+            new_records += 1
+            title = clean_title(str(record.get("requisitionTitle") or ""))
+            external_id = adp_external_job_id(record)
+            if not external_id:
+                continue
+            posting_url = (
+                f"{source.careers_url.split('&jobId=', 1)[0]}&jobId={quote(external_id)}"
+            )
+            if not is_specific_internship_listing(title, posting_url):
+                continue
+            locations = record.get("requisitionLocations")
+            location_names = []
+            if isinstance(locations, list):
+                for location in locations:
+                    if not isinstance(location, dict):
+                        continue
+                    name_code = location.get("nameCode")
+                    if isinstance(name_code, dict):
+                        name = clean_title(str(name_code.get("shortName") or ""))
+                        if name:
+                            location_names.append(name)
+            postings.append(
+                JobPosting(
+                    title=title,
+                    company=source.company,
+                    location="; ".join(dict.fromkeys(location_names)) or "Unknown",
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                )
+            )
+        meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+        total = int(meta.get("totalNumber", 0) or 0)
+        skip += len(records)
+        if not new_records or (total and skip >= total) or len(records) < page_size:
+            exhausted = True
+            break
+    if not exhausted:
+        raise RuntimeError(
+            f"ADP Workforce Now pagination exceeded {MAX_ATS_API_PAGES} API pages."
+        )
+    return postings
+
+
+def adp_external_job_id(record: dict[str, Any]) -> str:
+    custom_fields = record.get("customFieldGroup")
+    if not isinstance(custom_fields, dict):
+        return ""
+    fields = custom_fields.get("stringFields")
+    if not isinstance(fields, list):
+        return ""
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        name_code = field.get("nameCode")
+        code = name_code.get("codeValue") if isinstance(name_code, dict) else ""
+        if code == "ExternalJobID":
+            return str(field.get("stringValue") or "").strip()
+    return ""
+
+
+def collect_eightfold_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    get_json: GetJson | None = None,
+) -> list[JobPosting]:
+    """Collect internship-title variants from an Eightfold public PCSX API."""
+
+    parsed = urlparse(source.careers_url)
+    if not parsed.netloc:
+        raise ValueError("Eightfold careers host could not be determined.")
+    loader = get_json or get_public_json
+    api_base = f"{parsed.scheme}://{parsed.netloc}/api/pcsx"
+    domain = "morganstanley.com"
+    search_terms = ("intern", "summer analyst", "summer associate", "co-op")
+    records_by_id: dict[str, dict[str, Any]] = {}
+    for search_term in search_terms:
+        start = 0
+        exhausted = False
+        for _ in range(MAX_ATS_API_PAGES):
+            params = {
+                "domain": domain,
+                "query": search_term,
+                "location": "",
+                "start": start,
+            }
+            payload = loader(f"{api_base}/search?{urlencode(params)}")
+            data = payload.get("data") if isinstance(payload, dict) else None
+            records = data.get("positions") if isinstance(data, dict) else None
+            if not isinstance(records, list):
+                raise ValueError("Eightfold search API returned an unexpected response.")
+            if not records:
+                exhausted = True
+                break
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                position_id = str(record.get("id") or "").strip()
+                if position_id:
+                    records_by_id[position_id] = record
+            start += len(records)
+            total = int(data.get("count", 0) or 0)
+            if (total and start >= total) or len(records) < 10:
+                exhausted = True
+                break
+        if not exhausted:
+            raise RuntimeError(
+                f"Eightfold pagination exceeded {MAX_ATS_API_PAGES} API pages."
+            )
+
+    postings: list[JobPosting] = []
+    for position_id, record in records_by_id.items():
+        title = clean_title(str(record.get("name") or ""))
+        position_path = str(record.get("positionUrl") or "").strip()
+        posting_url = urljoin(source.careers_url, position_path)
+        if not posting_url or not is_specific_internship_listing(title, posting_url):
+            continue
+        detail_params = {
+            "position_id": position_id,
+            "domain": domain,
+            "hl": "en",
+        }
+        detail_payload = loader(
+            f"{api_base}/position_details?{urlencode(detail_params)}"
+        )
+        detail = (
+            detail_payload.get("data")
+            if isinstance(detail_payload, dict)
+            and isinstance(detail_payload.get("data"), dict)
+            else {}
+        )
+        detail_url = str(detail.get("publicUrl") or "").strip()
+        locations = detail.get("locations") or record.get("locations")
+        if isinstance(locations, list):
+            location = "; ".join(clean_title(str(item)) for item in locations if item)
+        else:
+            location = clean_title(str(locations or "Unknown"))
+        postings.append(
+            JobPosting(
+                title=clean_title(str(detail.get("name") or title)),
+                company=source.company,
+                location=location or "Unknown",
+                posting_url=detail_url or posting_url,
+                date_collected=collected_date,
+                source_url=source.careers_url,
+                eligibility_text=semantic_page_text(
+                    str(detail.get("jobDescription") or "")
+                ),
+            )
+        )
+    return postings
+
+
+def collect_general_dynamics_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    fetch_page: FetchPage | None = None,
+    get_json_with_headers: GetJsonWithHeaders | None = None,
+) -> list[JobPosting]:
+    """Use GD's aggregate API while preserving its public bootstrap session."""
+
+    browser_headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/138.0.0.0 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+            "image/avif,image/webp,*/*;q=0.8"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+    if fetch_page is not None and get_json_with_headers is not None:
+        html = fetch_page(source.careers_url)
+        loader = get_json_with_headers
+    else:
+        curl = shutil.which("curl.exe") or shutil.which("curl")
+        if not curl:
+            raise RuntimeError(
+                "General Dynamics requires the standard curl executable, "
+                "but it was not found."
+            )
+        session_directory = tempfile.TemporaryDirectory(prefix="internship-gd-")
+        cookie_jar = f"{session_directory.name}/cookies.txt"
+
+        def run_curl(url: str, headers: dict[str, str], *, save_cookies: bool) -> str:
+            command = [
+                curl,
+                "--silent",
+                "--show-error",
+                "--fail-with-body",
+                "--location",
+                "--max-time",
+                "30",
+            ]
+            if save_cookies:
+                command.extend(["--cookie-jar", cookie_jar])
+            else:
+                command.extend(["--cookie", cookie_jar])
+            for name, value in headers.items():
+                command.extend(["--header", f"{name}: {value}"])
+            command.append(url)
+            result = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                timeout=35,
+            )
+            if result.returncode:
+                message = result.stderr.decode("utf-8", errors="replace").strip()
+                raise RuntimeError(
+                    f"General Dynamics request failed ({result.returncode}): {message}"
+                )
+            return result.stdout.decode("utf-8", errors="replace")
+
+        def session_json(url: str, headers: dict[str, str]) -> Any:
+            return json.loads(run_curl(url, headers, save_cookies=False))
+
+        separator = "&" if "?" in source.careers_url else "?"
+        html = run_curl(
+            f"{source.careers_url}{separator}_={time.time_ns()}",
+            browser_headers,
+            save_cookies=True,
+        )
+        loader = session_json
+
+    auth = general_dynamics_authentication(html)
+    api_headers = {
+        "User-Agent": browser_headers["User-Agent"],
+        "Accept": "application/json, text/plain, */*",
+        "Referer": source.careers_url,
+        "api-auth-nonce": auth["nonce"],
+        "api-auth-signature": auth["signature"],
+        "api-auth-timestamp": auth["timestamp"],
+    }
+    parsed = urlparse(source.careers_url)
+    endpoint = f"{parsed.scheme}://{parsed.netloc}/API/Careers/CareerSearch"
+    postings_by_url: dict[str, JobPosting] = {}
+    page_size = 100
+    for search_term in ("intern", "co-op", "summer analyst", "summer associate"):
+        exhausted = False
+        for page in range(MAX_ATS_API_PAGES):
+            request_payload = {
+                "address": [],
+                "facets": [],
+                "page": page,
+                "what": search_term,
+                "pageSize": str(page_size),
+            }
+            compressed = gzip.compress(
+                json.dumps(request_payload, separators=(",", ":")).encode("utf-8")
+            )
+            encoded = base64.b64encode(compressed).decode("ascii")
+            payload = loader(
+                f"{endpoint}?{urlencode({'request': encoded})}",
+                api_headers,
+            )
+            records = payload.get("Results") if isinstance(payload, dict) else None
+            if not isinstance(records, list):
+                raise ValueError(
+                    "General Dynamics careers API returned an unexpected response."
+                )
+            if not records:
+                exhausted = True
+                break
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                title = clean_title(str(record.get("Title") or ""))
+                link = record.get("Link")
+                path = link.get("Url") if isinstance(link, dict) else ""
+                posting_url = urljoin(source.careers_url, str(path or ""))
+                # Every API record is already a specific GD job detail. GD's
+                # detail URLs end in "-opportunity" rather than a conventional
+                # /job/ path, so apply the internship term check directly.
+                if not posting_url or not mentions_internship(title, posting_url):
+                    continue
+                locations = record.get("LocationNames")
+                if isinstance(locations, list):
+                    location = "; ".join(
+                        clean_title(str(item)) for item in locations if item
+                    )
+                else:
+                    location = clean_title(str(locations or "Unknown"))
+                postings_by_url[posting_url] = JobPosting(
+                    title=title,
+                    company=source.company,
+                    location=location or "Unknown",
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                    eligibility_text=semantic_page_text(
+                        str(record.get("Excerpt") or "")
+                    ),
+                )
+            page_count = int(payload.get("PageCount", 0) or 0)
+            if (page_count and page + 1 >= page_count) or len(records) < page_size:
+                exhausted = True
+                break
+        if not exhausted:
+            raise RuntimeError(
+                "General Dynamics pagination exceeded "
+                f"{MAX_ATS_API_PAGES} API pages."
+            )
+    return list(postings_by_url.values())
+
+
+def general_dynamics_authentication(html: str) -> dict[str, str]:
+    values = {}
+    for key in ("nonce", "signature", "timestamp"):
+        match = re.search(
+            rf'data-{key}=["\']([^"\']+)["\']',
+            html,
+            re.IGNORECASE,
+        )
+        values[key] = (
+            html_module.unescape(match.group(1)).strip() if match else ""
+        )
+    if not all(values.values()):
+        raise ValueError(
+            "General Dynamics public API authentication metadata was not found."
+        )
+    return values
 
 
 def greenhouse_board_token(careers_url: str) -> str:

@@ -123,6 +123,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filter posting candidates for likely Summer 2027 internship relevance. Also writes a monitored-companies list for seed companies with no specific openings.",
     )
     filter_postings.add_argument(
+        "--private-dir",
+        type=Path,
+        default=Path("private"),
+        help="Path to private preferences used for explicit dislike exclusions.",
+    )
+    filter_postings.add_argument(
         "--input",
         type=Path,
         default=Path("data/postings.jsonl"),
@@ -592,6 +598,7 @@ def main(argv: list[str] | None = None) -> int:
             registry_path=args.registry,
             monitored_output_path=args.monitored_output,
             collection_errors_path=args.collection_errors,
+            private_dir=args.private_dir,
         )
         print(summarize_filter_result(result))
         return 0

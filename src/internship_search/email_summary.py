@@ -143,6 +143,8 @@ def select_email_postings(
     sent_posting_urls: set[str] | None = None,
     excluded_urls: set[str] | None = None,
 ) -> list[ScoredPosting]:
+    from internship_search.fit_scoring import is_recommended_fit
+
     sent_urls = sent_posting_urls or set()
     blocked_urls = excluded_urls or set()
     selected = [
@@ -150,6 +152,7 @@ def select_email_postings(
         for posting in scored_postings
         if posting.posting_url not in sent_urls
         and posting.posting_url not in blocked_urls
+        and is_recommended_fit(posting)
         and posting_matches_location_policy(posting.location, posting.title)
     ]
     return sorted(

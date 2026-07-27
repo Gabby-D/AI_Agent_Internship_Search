@@ -165,6 +165,13 @@ def load_review_dashboard(
     for filtered in source_filtered_postings:
         if not filtered.included:
             continue
+        from internship_search.preference_filter import title_dislike_matches
+
+        if title_dislike_matches(
+            filtered.title,
+            private_inputs.preferences.dislikes,
+        ):
+            continue
         if not posting_matches_location_policy(
             filtered.location,
             filtered.title,
@@ -173,6 +180,11 @@ def load_review_dashboard(
         ):
             continue
         scored = scored_by_url.get(filtered.posting_url)
+        if scored is not None:
+            from internship_search.fit_scoring import is_recommended_fit
+
+            if not is_recommended_fit(scored):
+                continue
         norm_company = normalize_company_name(filtered.company)
         suggested_overview = None
         if norm_company not in my_company_names and norm_company in suggested_by_company:

@@ -2,6 +2,7 @@ from urllib.parse import parse_qs, urlparse
 
 from internship_search.career_collectors import (
     clear_consider_board_cache,
+    collect_adp_workforce_now_postings,
     collect_ashby_postings,
     collect_avature_rss_postings,
     collect_bank_of_america_postings,
@@ -12,9 +13,11 @@ from internship_search.career_collectors import (
     collect_closed_company_postings,
     collect_direct_job_url_posting,
     collect_greenhouse_postings,
+    collect_general_dynamics_postings,
     collect_goldman_higher_postings,
     collect_json_ld_postings,
     collect_lemonade_postings,
+    collect_eightfold_postings,
     collect_pwc_postings,
     collect_semantic_detail_posting,
     collect_postings_for_source,
@@ -1220,3 +1223,161 @@ def test_direct_job_url_supports_plural_jobs_path():
 
     assert len(postings) == 1
     assert postings[0].title == "2027 finance summer internship"
+
+
+def test_collect_adp_workforce_now_reads_complete_board():
+    source = make_source(
+        company="Meyer Sound",
+        careers_url=(
+            "https://workforcenow.adp.com/mascsr/default/mdf/recruitment/"
+            "recruitment.html?cid=client-1&ccId=center-1&lang=en_US"
+        ),
+        collector="adp_workforce_now",
+    )
+    requested_urls: list[str] = []
+
+    def get_json(url: str) -> dict:
+        requested_urls.append(url)
+        return {
+            "jobRequisitions": [
+                {
+                    "itemID": "item-1",
+                    "requisitionTitle": "Audio Engineering Intern",
+                    "customFieldGroup": {
+                        "stringFields": [
+                            {
+                                "nameCode": {"codeValue": "ExternalJobID"},
+                                "stringValue": "12345",
+                            }
+                        ]
+                    },
+                    "requisitionLocations": [
+                        {"nameCode": {"shortName": "Berkeley, CA, US"}}
+                    ],
+                },
+                {
+                    "itemID": "item-2",
+                    "requisitionTitle": "Senior Audio Engineer",
+                    "customFieldGroup": {
+                        "stringFields": [
+                            {
+                                "nameCode": {"codeValue": "ExternalJobID"},
+                                "stringValue": "67890",
+                            }
+                        ]
+                    },
+                },
+            ],
+            "meta": {"totalNumber": 2},
+        }
+
+    postings = collect_adp_workforce_now_postings(
+        source, "2026-07-27", get_json=get_json
+    )
+
+    query = parse_qs(urlparse(requested_urls[0]).query)
+    assert query["$top"] == ["100"]
+    assert query["$skip"] == ["0"]
+    assert [posting.title for posting in postings] == ["Audio Engineering Intern"]
+    assert postings[0].location == "Berkeley, CA, US"
+    assert postings[0].posting_url.endswith("&jobId=12345")
+
+
+def test_collect_eightfold_pages_search_variants_and_loads_details():
+    source = make_source(
+        company="Morgan Stanley",
+        careers_url="https://morganstanley.eightfold.ai/careers",
+        collector="eightfold_pcsx",
+    )
+    search_terms: list[str] = []
+
+    def get_json(url: str) -> dict:
+        query = parse_qs(urlparse(url).query)
+        if "/position_details" in url:
+            return {
+                "data": {
+                    "id": "100",
+                    "name": "2027 Technology Summer Analyst",
+                    "locations": ["San Francisco, California"],
+                    "publicUrl": (
+                        "https://morganstanley.eightfold.ai/careers/job/100"
+                    ),
+                    "jobDescription": "<p>Open to undergraduate students.</p>",
+                }
+            }
+        search_terms.append(query["query"][0])
+        return {
+            "data": {
+                "count": 1,
+                "positions": [
+                    {
+                        "id": "100",
+                        "name": "2027 Technology Summer Analyst",
+                        "locations": ["San Francisco, California"],
+                        "positionUrl": "/careers/job/100",
+                    }
+                ],
+            }
+        }
+
+    postings = collect_eightfold_postings(
+        source, "2026-07-27", get_json=get_json
+    )
+
+    assert search_terms == [
+        "intern",
+        "summer analyst",
+        "summer associate",
+        "co-op",
+    ]
+    assert len(postings) == 1
+    assert postings[0].location == "San Francisco, California"
+    assert "undergraduate" in postings[0].eligibility_text.lower()
+
+
+def test_collect_general_dynamics_preserves_bootstrap_auth_and_filters_results():
+    source = make_source(
+        company="General Dynamics",
+        careers_url="https://www.gd.com/careers/job-search",
+        collector="general_dynamics_jobs",
+    )
+    html = """
+    <div class="js-api-authentication"
+         data-nonce="nonce-value"
+         data-signature="signature-value"
+         data-timestamp="2026-07-27T19:00:00Z"></div>
+    """
+    calls: list[tuple[str, dict[str, str]]] = []
+
+    def get_json_with_headers(url: str, headers: dict[str, str]) -> dict:
+        calls.append((url, headers))
+        return {
+            "PageCount": 1,
+            "Results": [
+                {
+                    "Title": "Fall Intern - Engineering",
+                    "Link": {"Url": "/careers/fall-intern-engineering-opportunity"},
+                    "LocationNames": ["San Jose, CA, US"],
+                    "Excerpt": "Undergraduate engineering students.",
+                },
+                {
+                    "Title": "International Program Manager",
+                    "Link": {"Url": "/careers/international-manager-opportunity"},
+                    "LocationNames": ["Virginia, US"],
+                },
+            ],
+        }
+
+    postings = collect_general_dynamics_postings(
+        source,
+        "2026-07-27",
+        fetch_page=lambda url: html,
+        get_json_with_headers=get_json_with_headers,
+    )
+
+    assert len(calls) == 4
+    assert calls[0][1]["api-auth-nonce"] == "nonce-value"
+    assert calls[0][1]["api-auth-signature"] == "signature-value"
+    assert len(postings) == 1
+    assert postings[0].title == "Fall Intern - Engineering"
+    assert postings[0].location == "San Jose, CA, US"

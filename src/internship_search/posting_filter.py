@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from collections.abc import Sequence
 
 from internship_search.internship_listing import (
     classify_internship_listing,
@@ -13,6 +14,10 @@ from internship_search.internship_listing import (
 )
 from internship_search.job_collector import JobPosting, read_postings_jsonl
 from internship_search.location_filter import LOCATION_FILTER_REASON, matches_allowed_location
+from internship_search.preference_filter import (
+    PREFERENCE_CONFLICT_REASON,
+    title_dislike_matches,
+)
 
 
 INTERNSHIP_TERMS = {
@@ -105,8 +110,16 @@ def filter_postings_file(
     registry_path: Path | str | None = "data/source_registry.json",
     monitored_output_path: Path | str | None = "data/monitored_no_openings.jsonl",
     collection_errors_path: Path | str | None = "data/collection_errors.jsonl",
+    private_dir: Path | str | None = "private",
 ) -> FilterResult:
     postings = read_postings_jsonl(input_path)
+    dislikes: Sequence[str] = ()
+    if private_dir is not None:
+        from internship_search.private_inputs import read_preferences
+
+        preferences_path = Path(private_dir) / "preferences.md"
+        if preferences_path.exists():
+            dislikes = read_preferences(private_dir).dislikes
     return filter_postings(
         postings=postings,
         included_output_path=included_output_path,
@@ -114,6 +127,7 @@ def filter_postings_file(
         registry_path=registry_path,
         monitored_output_path=monitored_output_path,
         collection_errors_path=collection_errors_path,
+        dislikes=dislikes,
     )
 
 
@@ -124,8 +138,9 @@ def filter_postings(
     registry_path: Path | str | None = "data/source_registry.json",
     monitored_output_path: Path | str | None = "data/monitored_no_openings.jsonl",
     collection_errors_path: Path | str | None = "data/collection_errors.jsonl",
+    dislikes: Sequence[str] = (),
 ) -> FilterResult:
-    filtered = [evaluate_posting(posting) for posting in postings]
+    filtered = [evaluate_posting(posting, dislikes=dislikes) for posting in postings]
     included = [posting for posting in filtered if posting.included]
     excluded = [posting for posting in filtered if not posting.included]
 
@@ -159,7 +174,11 @@ def filter_postings(
     )
 
 
-def evaluate_posting(posting: JobPosting) -> FilteredPosting:
+def evaluate_posting(
+    posting: JobPosting,
+    *,
+    dislikes: Sequence[str] = (),
+) -> FilteredPosting:
     searchable = build_searchable_text(posting)
     reasons: list[str] = []
 
@@ -172,6 +191,14 @@ def evaluate_posting(posting: JobPosting) -> FilteredPosting:
         reasons.extend(classification.reasons)
         if is_graduate_only_posting(posting):
             reasons.append(GRADUATE_ONLY_REASON)
+            return to_filtered_posting(posting=posting, included=False, reasons=reasons)
+        preference_conflicts = title_dislike_matches(posting.title, dislikes)
+        if preference_conflicts:
+            reasons.append(
+                f"{PREFERENCE_CONFLICT_REASON} Matched: "
+                + ", ".join(preference_conflicts)
+                + "."
+            )
             return to_filtered_posting(posting=posting, included=False, reasons=reasons)
         if not matches_allowed_location(
             posting.location,

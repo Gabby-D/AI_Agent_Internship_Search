@@ -25,7 +25,7 @@ Current generated files:
   graduate- and advanced-degree-only internships, with exclusion reasons.
 - `monitored_no_openings.jsonl` contains seed companies that have no specific matching opening or could not be checked.
 - `latest_report.md` contains the readable local review report.
-- `scored_postings.jsonl` contains fit scores, fit levels, explanations, and gaps for filtered postings.
+- `scored_postings.jsonl` contains fit scores, fit levels, explanations, and gaps for filtered postings. The webpage and weekly email recommend only roles that clear the recommendation threshold; explicit title conflicts from private dislikes are excluded earlier.
 - `weekly_email_summary.md` contains the local email-ready weekly summary draft.
 - `email_sent_history.json` contains posting URLs included in successfully sent email summaries.
 - `scheduled_collection_runs.jsonl` contains append-only run logs for manual or scheduled workflow runs.

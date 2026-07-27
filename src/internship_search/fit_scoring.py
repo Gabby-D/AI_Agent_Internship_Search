@@ -8,6 +8,7 @@ from pathlib import Path
 
 from internship_search.posting_filter import FilteredPosting, read_filtered_postings_jsonl
 from internship_search.private_inputs import PrivateInputs, load_private_inputs
+from internship_search.preference_filter import title_dislike_matches
 from internship_search.source_registry import CompanySource, read_source_registry
 
 
@@ -27,6 +28,7 @@ class ScoredPosting:
 
 
 PROVIDER_NAME = "local_rule_based"
+MIN_RECOMMENDATION_SCORE = 60
 
 
 @dataclass(frozen=True)
@@ -97,6 +99,11 @@ def score_postings(
 
     for posting in postings:
         if not posting.included:
+            continue
+        if title_dislike_matches(
+            posting.title,
+            private_inputs.preferences.dislikes,
+        ):
             continue
         if not matches_allowed_location(
             posting.location,
@@ -303,6 +310,15 @@ def fit_level(score: int) -> str:
     if score >= 50:
         return "medium"
     return "weak"
+
+
+def is_recommended_fit(posting: ScoredPosting) -> bool:
+    """Return True only for scored roles suitable for recommendation surfaces."""
+
+    return (
+        posting.score >= MIN_RECOMMENDATION_SCORE
+        and posting.fit_level.lower() != "weak"
+    )
 
 
 def is_general_program_page(posting: FilteredPosting) -> bool:

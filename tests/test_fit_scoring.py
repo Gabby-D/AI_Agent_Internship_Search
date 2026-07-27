@@ -106,3 +106,29 @@ def test_score_postings_writes_sorted_output(tmp_path):
     assert result.output_path.exists()
     assert result.scored_postings[0].company == "Connected Co"
     assert "score" in result.output_path.read_text(encoding="utf-8")
+
+
+def test_score_postings_skips_stale_title_that_conflicts_with_dislike(tmp_path):
+    inputs = make_private_inputs()
+    inputs = PrivateInputs(
+        companies=inputs.companies,
+        industries=inputs.industries,
+        preferences=Preferences(
+            likes=inputs.preferences.likes,
+            dislikes=["engineering"],
+        ),
+        program=inputs.program,
+        courses=inputs.courses,
+        connections_notes=inputs.connections_notes,
+        resume_path=inputs.resume_path,
+    )
+
+    result = score_postings(
+        postings=[make_posting(title="Software Engineering Internship")],
+        private_inputs=inputs,
+        sources=[],
+        output_path=tmp_path / "scored.jsonl",
+        provider_name="local",
+    )
+
+    assert result.scored_postings == []

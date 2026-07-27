@@ -95,7 +95,7 @@ For supported public boards, the collector uses complete-list APIs instead of re
   results beyond the first visible page. Public qualification text is retained
   locally so graduate-only roles can be removed accurately.
 
-All retrieved jobs are then filtered locally for specific undergraduate-eligible internship listings and the private location policy. Roles intended only for graduate, master's, MBA, PhD, doctoral, or other advanced-degree students are excluded; roles explicitly open to undergraduates remain eligible even when graduate students may also apply. Sites requiring authentication, blocking public access, or exceeding a safety limit are recorded in `data/collection_errors.jsonl` and included in the weekly email so they can be corrected. No collector attempts to bypass authentication or anti-bot protections.
+All retrieved jobs are then filtered locally for specific undergraduate-eligible internship listings, the private location policy, and explicit role dislikes. A posting whose title clearly conflicts with a private dislike is excluded instead of merely receiving a lower score. Roles intended only for graduate, master's, MBA, PhD, doctoral, or other advanced-degree students are excluded; roles explicitly open to undergraduates remain eligible even when graduate students may also apply. Sites requiring authentication, blocking public access, or exceeding a safety limit are recorded in `data/collection_errors.jsonl` and included in the weekly email so they can be corrected. No collector attempts to bypass authentication or anti-bot protections.
 
 ### 5. Review results
 
@@ -150,7 +150,7 @@ uv run internship-search run-scheduled-collection --include-job-boards
 
 ## Location Policy
 
-The pipeline keeps roles that match the user's preference of location or are clearly fully remote or online. Specific location preferences are stored only in the ignored `private/location_preferences.txt` file. Other and unknown locations are excluded during filtering and omitted from scoring, weekly email, and the review dashboard.
+The pipeline keeps roles that match the user's preference of location or are clearly fully remote or online. Specific location preferences are stored only in the ignored `private/location_preferences.txt` file. Other and unknown locations are excluded during filtering and omitted from scoring, weekly email, and the review dashboard. Recommendation surfaces also omit explicit dislike conflicts and scored roles below the minimum recommendation threshold.
 
 An empty dashboard can therefore mean that no current roles match the location policy.
 

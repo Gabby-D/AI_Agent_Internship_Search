@@ -365,6 +365,69 @@ batch unless their official source changes or a future scan records a new
 failure. Before pushing, review the diff, run the full tests, and confirm no
 private or generated files are staged.
 
+### Farallon, General Dynamics, Meyer Sound, and Morgan Stanley (2026-07-27)
+
+This recovery batch is implemented and live-validated locally. It has not been
+pushed to Git.
+
+| Company | Official complete source | Internship candidates | Source issue |
+| --- | --- | ---: | --- |
+| Farallon Capital Management | Greenhouse public board API | 0 | No |
+| General Dynamics | Aggregate GD careers API | 10 | No |
+| Meyer Sound | ADP Workforce Now public API | 0 | No |
+| Morgan Stanley | Eightfold PCSX public search/detail APIs | 5 | No |
+
+These are current-source candidate counts before the existing private
+location, undergraduate, and preference filters. General Dynamics currently
+returns one graduate internship among its ten candidates; the existing
+graduate-only eligibility stage excludes that role from user-facing results.
+
+Implementation details:
+
+- Farallon now uses the official Greenhouse board linked from its corporate
+  site.
+- Meyer Sound now pages the official ADP Workforce Now requisitions endpoint.
+  Its two current jobs are non-internships, so zero is a verified healthy
+  result.
+- Morgan Stanley searches and merges every page for `intern`, `summer analyst`,
+  `summer associate`, and `co-op`, then loads job details for retained records.
+- General Dynamics uses the official aggregate API. The required short-lived
+  token and cookies must come from the same public careers-page session. The
+  standard `curl` executable is used to preserve that session because the site
+  rejects Python's direct HTTP fingerprint with 403 even when all headers and
+  cookies are otherwise correct. No browser automation or stored token is
+  required for scheduled scans.
+
+Verification:
+
+- Focused collector and registry tests pass.
+- Full package suite: `283 passed`.
+- All four live collectors completed without a source warning.
+- No email was sent and no Git push was performed during this batch.
+
+### Recommendation Relevance Repair (2026-07-27)
+
+Recommendation relevance is now enforced at two deterministic boundaries:
+
+- A specific role whose title clearly matches an explicit private dislike is
+  excluded during posting filtering. Common singular, plural, and occupational
+  word forms are normalized, and multiword dislikes require at least two
+  meaningful matching terms.
+- The webpage and weekly email show only scored roles at or above the minimum
+  recommendation score (`60`) and never show a role whose scorer labels it
+  weak.
+
+The scoring stage repeats the explicit-dislike guard so a stale filtered file
+cannot send a conflicting role to the AI scorer or weekly email. The dashboard
+also applies the guard dynamically so edits to the private preference file take
+effect before the next complete scheduled run.
+
+Private preference contents remain only in ignored local files. Tracked tests
+use synthetic examples and cover single-word variants, multiword conflicts,
+unrelated-role preservation, stale-score protection, email selection, and
+dashboard hiding. No email is sent and no Git push is performed as part of
+this repair.
+
 ### Scheduler Reliability Repair (2026-07-27)
 
 - Windows power events show that the laptop was asleep at the Monday 10:00 AM

@@ -38,7 +38,39 @@ def test_evaluate_posting_includes_internship():
 
 
 def test_evaluate_posting_excludes_disliked_marketing_role():
-    result = evaluate_posting(make_posting(title="Example Internship", location="Remote"))
+    result = evaluate_posting(
+        make_posting(title="Marketing Internship", location="Remote"),
+        dislikes=["marketing"],
+    )
+
+    assert result.included is False
+    assert any("explicit user dislike" in reason for reason in result.reasons)
+
+
+def test_evaluate_posting_excludes_tax_role_for_taxes_dislike():
+    result = evaluate_posting(
+        make_posting(title="Tax Consulting Intern", location="Remote"),
+        dislikes=["Taxes"],
+    )
+
+    assert result.included is False
+    assert any("Matched: Taxes" in reason for reason in result.reasons)
+
+
+def test_evaluate_posting_excludes_engineer_role_for_engineering_dislike():
+    result = evaluate_posting(
+        make_posting(title="Software Engineer Intern", location="Remote"),
+        dislikes=["engineering"],
+    )
+
+    assert result.included is False
+
+
+def test_evaluate_posting_keeps_business_role_when_dislikes_do_not_match():
+    result = evaluate_posting(
+        make_posting(title="Business Operations Intern", location="Remote"),
+        dislikes=["marketing", "Taxes", "engineering"],
+    )
 
     assert result.included is True
 

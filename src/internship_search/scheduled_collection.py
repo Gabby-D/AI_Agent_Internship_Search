@@ -173,6 +173,7 @@ def run_scheduled_collection(
                 input_path=postings_path,
                 included_output_path=included_path,
                 excluded_output_path=excluded_path,
+                private_dir=private_dir,
             )
             steps.append(
                 WorkflowStepResult(

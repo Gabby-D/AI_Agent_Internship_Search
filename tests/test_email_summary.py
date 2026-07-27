@@ -56,7 +56,7 @@ def make_source(company: str = "Connected Co", has_connection: bool = True) -> C
     )
 
 
-def test_select_email_postings_includes_all_unsent_postings():
+def test_select_email_postings_excludes_low_fit_unsent_postings():
     new_posting = make_scored_posting(url="https://example.com/jobs/new", score=35, fit_level="weak")
     high_priority = make_scored_posting(url="https://example.com/jobs/high", score=60, fit_level="medium")
     already_sent = make_scored_posting(url="https://example.com/jobs/sent", score=90, fit_level="strong")
@@ -72,7 +72,6 @@ def test_select_email_postings_includes_all_unsent_postings():
 
     assert [posting.posting_url for posting in selected] == [
         "https://example.com/jobs/high",
-        "https://example.com/jobs/new",
     ]
 
 

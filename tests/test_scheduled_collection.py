@@ -52,7 +52,7 @@ def test_run_scheduled_collection_composes_pipeline_and_logs(monkeypatch, tmp_pa
     monkeypatch.setattr(
         posting_filter,
         "filter_postings_file",
-        lambda input_path, included_output_path, excluded_output_path: calls.append("filter")
+        lambda input_path, included_output_path, excluded_output_path, private_dir: calls.append("filter")
         or SimpleNamespace(included=[object()], excluded=[object(), object()]),
     )
     monkeypatch.setattr(

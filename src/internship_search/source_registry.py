@@ -349,6 +349,47 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         ),
         collector="greenhouse_api",
     ),
+    "farallon capital management": SourceMetadata(
+        careers_url=(
+            "https://job-boards.greenhouse.io/faralloncapitalmanagementllc"
+        ),
+        source_type="company_careers_search",
+        notes="Complete official Farallon Capital Management Greenhouse job board.",
+        alternate_careers_urls=("https://www.faralloncapital.com/careers",),
+        collector="greenhouse_api",
+    ),
+    "meyer sound": SourceMetadata(
+        careers_url=(
+            "https://workforcenow.adp.com/mascsr/default/mdf/recruitment/"
+            "recruitment.html?cid=00a315c7-e5f5-4392-94c9-185170c8222a"
+            "&ccId=19000101_000001&lang=en_US"
+        ),
+        source_type="company_careers_search",
+        notes="Complete official Meyer Sound ADP Workforce Now careers board.",
+        alternate_careers_urls=("https://meyersound.com/contact/",),
+        collector="adp_workforce_now",
+    ),
+    "morgan stanley": SourceMetadata(
+        careers_url="https://morganstanley.eightfold.ai/careers",
+        source_type="company_careers_search",
+        notes=(
+            "Page through Morgan Stanley's official Eightfold searches for all "
+            "supported internship-title variants and merge the complete results."
+        ),
+        alternate_careers_urls=(
+            "https://www.morganstanley.com/people-opportunities/students-graduates",
+        ),
+        collector="eightfold_pcsx",
+    ),
+    "general dynamics": SourceMetadata(
+        careers_url="https://www.gd.com/careers/job-search",
+        source_type="company_careers_search",
+        notes=(
+            "Page through General Dynamics' complete official aggregate careers "
+            "API while preserving the short-lived public page session."
+        ),
+        collector="general_dynamics_jobs",
+    ),
 }
 
 

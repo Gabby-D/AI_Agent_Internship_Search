@@ -179,6 +179,22 @@ def test_additional_recovered_sources_use_complete_official_collectors():
             "jobs.disneycareers.com/search-jobs/pixar/391/1",
             "pixar_jobs",
         ),
+        "Farallon Capital Management": (
+            "job-boards.greenhouse.io/faralloncapitalmanagementllc",
+            "greenhouse_api",
+        ),
+        "General Dynamics": (
+            "gd.com/careers/job-search",
+            "general_dynamics_jobs",
+        ),
+        "Meyer Sound": (
+            "workforcenow.adp.com/mascsr/default/mdf/recruitment",
+            "adp_workforce_now",
+        ),
+        "Morgan Stanley": (
+            "morganstanley.eightfold.ai/careers",
+            "eightfold_pcsx",
+        ),
     }
 
     for company_name, (url_part, collector) in expected.items():
