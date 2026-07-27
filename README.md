@@ -296,9 +296,16 @@ This registers:
 
 - **Recommended-company discovery** on Monday at 8:30 AM
 - **Daily collection** at 9:00 AM with `--include-job-boards`
-- **Weekly email send** on Monday at 10:00 AM
+- **Weekly fresh collection and email send** on Monday at 10:00 AM
 
-If the computer is off at the scheduled time, each task runs the next time the computer becomes available.
+The tasks request that Windows wake the laptop when supported. If a run is
+still missed, it starts when the computer next becomes available. Failed runs
+retry up to three times at five-minute intervals. A shared automation lock
+prevents discovery, collection, and email jobs from changing the same files
+simultaneously when several missed tasks start after one wake-up.
+
+The weekly email wrapper performs a fresh collection before sending, so it
+does not depend on the separate daily collection finishing first.
 
 Wrapper scripts:
 
@@ -335,13 +342,13 @@ After setup, confirm automation is working:
 
 | Symptom | What to check |
 |---------|----------------|
-| Weekly email not received | Run `weekly-email-summary --send` manually and read the `Send status:` line. Gmail app passwords need `EMAIL_SMTP_HOST=smtp.gmail.com` and port `587` (defaults apply when unset). |
+| Weekly email not received | Check Task Scheduler's last result and the newest `weekly_email_*.log`. Re-register tasks to restore wake/catch-up/retry settings, then run `weekly-email-summary --send` manually if an immediate resend is needed. Gmail app passwords need `EMAIL_SMTP_HOST=smtp.gmail.com` and port `587` (defaults apply when unset). |
 | Task Scheduler shows non-zero last result | Open the newest file in `data/scheduled_run_output/`. Collection runs with source warnings may still finish with `Status: partial` and exit code `0` when scoring and email steps succeed. |
 | `email_sent_history.json` unchanged after send | Send did not succeed. Fix SMTP credentials and retry; history updates only after delivery succeeds. |
 | No new postings in email | All current postings may already appear in `email_sent_history.json`. Run a fresh `run-scheduled-collection` first. |
 | Job board search returns 0 postings | DuckDuckGo coverage depends on public search indexes. Try a custom `search-job-boards --query` using the user's desired internship cycle. Non-internship roles are filtered out. |
 | Review UI link does not load | Run `uv run internship-search review-ui` in a separate terminal and keep it open. The site is not running during collection commands. |
-| Collection task never runs | Re-register tasks: `config/register_scheduled_tasks.ps1`. Tasks use `StartWhenAvailable` to catch up after the computer was off. |
+| Collection task never runs | Re-register tasks: `config/register_scheduled_tasks.ps1`. Tasks use wake, `StartWhenAvailable`, and retry settings. Some laptops or power policies may still prevent waking, in which case the task catches up after the computer becomes available. |
 
 Wrapper exit codes:
 

@@ -225,7 +225,15 @@ def generic_page_reason(title: str, url: str) -> str | None:
         return f"Title matches a generic careers page: '{title}'."
 
     matched_fragment = next(
-        (fragment for fragment in GENERIC_TITLE_FRAGMENTS if fragment in title),
+        (
+            fragment
+            for fragment in GENERIC_TITLE_FRAGMENTS
+            if fragment in title
+            and not (
+                fragment == "search intern"
+                and not title.startswith(("search intern", "search for intern"))
+            )
+        ),
         "",
     )
     if matched_fragment:

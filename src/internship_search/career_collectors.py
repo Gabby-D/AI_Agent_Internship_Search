@@ -54,6 +54,34 @@ MCKINSEY_JOBS_API = (
     "https://gateway.mckinsey.com/apigw-x0cceuow60/v1/api/jobs/search"
 )
 PHENOM_REFNUM_RE = re.compile(r'"refNum"\s*:\s*"([^"]+)"')
+NEXT_DATA_RE = re.compile(
+    r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
+    re.IGNORECASE | re.DOTALL,
+)
+DISNEY_RESULT_ROW_RE = re.compile(
+    r"<tr[^>]*>(?P<row>.*?)</tr>",
+    re.IGNORECASE | re.DOTALL,
+)
+DISNEY_JOB_RE = re.compile(
+    r'<a[^>]+href=["\'](?P<url>/job/[^"\']+)["\'][^>]*>.*?'
+    r"<h2[^>]*>(?P<title>.*?)</h2>",
+    re.IGNORECASE | re.DOTALL,
+)
+DISNEY_BRAND_RE = re.compile(
+    r'<span[^>]+class=["\'][^"\']*\bjob-brand\b[^"\']*["\'][^>]*>'
+    r"(?P<brand>.*?)</span>",
+    re.IGNORECASE | re.DOTALL,
+)
+DISNEY_LOCATION_RE = re.compile(
+    r'<span[^>]+class=["\'][^"\']*\bjob-location\b[^"\']*["\'][^>]*>'
+    r"(?P<location>.*?)</span>",
+    re.IGNORECASE | re.DOTALL,
+)
+DISNEY_TOTAL_PAGES_RE = re.compile(
+    r'class=["\'][^"\']*\bpagination-total-pages\b[^"\']*["\'][^>]*>'
+    r"\s*of\s*(?P<total>\d+)",
+    re.IGNORECASE | re.DOTALL,
+)
 PAYCOR_JOB_RE = re.compile(
     r'<a[^>]+href=["\'](?P<url>https://recruitingbypaycor\.com/'
     r'career/JobIntroduction\.action\?[^"\']+)["\'][^>]+'
@@ -91,11 +119,14 @@ EXHAUSTIVE_API_STRATEGIES = {
     "breezy_html",
     "consider_board",
     "greenhouse_api",
+    "goldman_higher",
+    "lemonade_jobs",
     "lever_api",
     "mckinsey_jobs",
     "oracle_recruiting_api",
     "paycor_html",
     "phenom_api",
+    "pixar_jobs",
     "teamtailor_html",
     "workday_api",
     "closed_company",
@@ -284,6 +315,12 @@ def run_collector_strategy(
         return collect_avature_rss_postings(source, html, collected_date)
     if strategy == "oracle_recruiting_api":
         return collect_oracle_recruiting_postings(source, html, collected_date)
+    if strategy == "goldman_higher":
+        return collect_goldman_higher_postings(source, collected_date)
+    if strategy == "lemonade_jobs":
+        return collect_lemonade_postings(source, html, collected_date)
+    if strategy == "pixar_jobs":
+        return collect_pixar_postings(source, html, collected_date)
     if strategy == "closed_company":
         return collect_closed_company_postings(source, html)
     if strategy == "bank_of_america_jobs":
@@ -983,6 +1020,7 @@ def collect_oracle_recruiting_postings(
 ) -> list[JobPosting]:
     """Page through an Oracle Recruiting Cloud public career site search."""
 
+    parsed_source_url = urlparse(source.careers_url)
     api_base_match = re.search(
         r'(https://[^"\'\s<>]+oraclecloud\.com(?::\d+)?)',
         html,
@@ -993,17 +1031,32 @@ def collect_oracle_recruiting_postings(
         html,
         re.IGNORECASE,
     )
+    if not api_base_match and host_matches_domain(
+        parsed_source_url.netloc,
+        "oraclecloud.com",
+    ):
+        api_base = f"{parsed_source_url.scheme}://{parsed_source_url.netloc}"
+    else:
+        api_base = api_base_match.group(1).rstrip("/") if api_base_match else ""
+    if not site_match:
+        site_match = re.search(
+            r"/sites/([^/?#]+)",
+            parsed_source_url.path,
+            re.IGNORECASE,
+        )
     if not api_base_match or not site_match:
-        raise ValueError("Oracle Recruiting API host or career-site number was not found.")
+        if not api_base or not site_match:
+            raise ValueError(
+                "Oracle Recruiting API host or career-site number was not found."
+            )
 
-    api_base = api_base_match.group(1).rstrip("/")
     site_number = site_match.group(1)
     endpoint = (
         f"{api_base}/hcmRestApi/resources/latest/"
         "recruitingCEJobRequisitions"
     )
     loader = get_json or get_public_json
-    page_size = 25
+    page_size = 100
     offset = 0
     postings: list[JobPosting] = []
     seen_ids: set[str] = set()
@@ -1049,10 +1102,17 @@ def collect_oracle_recruiting_postings(
                 continue
             seen_ids.add(requisition_id)
             title = clean_title(str(record.get("Title") or ""))
-            posting_url = (
-                f"{source.careers_url.split('?', 1)[0].rstrip('/')}/"
-                f"job/{quote(requisition_id)}"
+            site_root_match = re.search(
+                rf"^(.*?/sites/{re.escape(site_number)})(?:/|$)",
+                source.careers_url.split("?", 1)[0],
+                re.IGNORECASE,
             )
+            site_root = (
+                site_root_match.group(1)
+                if site_root_match
+                else source.careers_url.split("?", 1)[0].rstrip("/")
+            )
+            posting_url = f"{site_root}/job/{quote(requisition_id)}"
             if not is_specific_internship_listing(title, posting_url):
                 continue
             postings.append(
@@ -1092,6 +1152,284 @@ def collect_oracle_recruiting_postings(
         raise RuntimeError(
             f"Oracle Recruiting pagination exceeded {MAX_ATS_API_PAGES} API pages."
         )
+    return postings
+
+
+GOLDMAN_HIGHER_API = "https://api-higher.gs.com/gateway/api/v1/graphql"
+GOLDMAN_HIGHER_QUERY = """
+query GetCampusRoles($searchQueryInput: RoleSearchQueryInput!) {
+  roleSearch(searchQueryInput: $searchQueryInput) {
+    totalCount
+    items {
+      roleId
+      corporateTitle
+      jobTitle
+      jobFunction
+      locations { primary state country city }
+      status
+      division
+      skills
+      jobType { code description }
+      educationLevel
+      startDate
+      gradDegreeStartDate
+      gradDegreeEndDate
+    }
+  }
+}
+""".strip()
+
+
+def collect_goldman_higher_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    post_json: PostJson | None = None,
+) -> list[JobPosting]:
+    """Page through Goldman Sachs' official current campus-role API."""
+
+    poster = post_json or post_public_json
+    page_size = 20
+    page_number = 0
+    postings: list[JobPosting] = []
+    seen_ids: set[str] = set()
+    exhausted = False
+
+    for _ in range(MAX_ATS_API_PAGES):
+        payload = poster(
+            GOLDMAN_HIGHER_API,
+            {
+                "query": GOLDMAN_HIGHER_QUERY,
+                "variables": {
+                    "searchQueryInput": {
+                        "page": {
+                            "pageSize": page_size,
+                            "pageNumber": page_number,
+                        },
+                        "sort": {
+                            "sortStrategy": "POSTED_DATE",
+                            "sortOrder": "DESC",
+                        },
+                        "experiences": ["CAMPUS"],
+                        "searchTerm": "",
+                    }
+                },
+            },
+        )
+        role_search = (
+            payload.get("data", {}).get("roleSearch")
+            if isinstance(payload, dict)
+            else None
+        )
+        if not isinstance(role_search, dict):
+            raise ValueError("Goldman Sachs role API returned an unexpected response.")
+        records = role_search.get("items")
+        if not isinstance(records, list):
+            raise ValueError("Goldman Sachs role list was missing.")
+
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            role_id = str(record.get("roleId") or "").strip()
+            if not role_id or role_id in seen_ids:
+                continue
+            seen_ids.add(role_id)
+            title = clean_title(str(record.get("jobTitle") or ""))
+            posting_url = f"https://higher.gs.com/roles/{quote(role_id)}"
+            if not is_specific_internship_listing(title, posting_url):
+                continue
+            locations = record.get("locations")
+            location_texts = []
+            if isinstance(locations, list):
+                for location in locations:
+                    if not isinstance(location, dict):
+                        continue
+                    parts = [
+                        clean_title(str(location.get(key) or ""))
+                        for key in ("city", "state", "country")
+                    ]
+                    rendered = ", ".join(part for part in parts if part)
+                    if rendered and rendered not in location_texts:
+                        location_texts.append(rendered)
+            job_type = record.get("jobType")
+            eligibility_parts = [
+                record.get("educationLevel"),
+                record.get("corporateTitle"),
+                record.get("jobFunction"),
+                record.get("division"),
+                job_type.get("description") if isinstance(job_type, dict) else "",
+            ]
+            postings.append(
+                JobPosting(
+                    title=title,
+                    company=source.company,
+                    location="; ".join(location_texts) or "Unknown",
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                    eligibility_text=semantic_page_text(
+                        " ".join(str(part or "") for part in eligibility_parts)
+                    ),
+                )
+            )
+
+        total = int(role_search.get("totalCount", 0) or 0)
+        page_number += 1
+        if (
+            not records
+            or (total and page_number * page_size >= total)
+            or (not total and len(records) < page_size)
+        ):
+            exhausted = True
+            break
+
+    if not exhausted:
+        raise RuntimeError(
+            f"Goldman Sachs pagination exceeded {MAX_ATS_API_PAGES} API pages."
+        )
+    return postings
+
+
+def collect_lemonade_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+) -> list[JobPosting]:
+    """Read every Lemonade role from its official Next.js careers payload."""
+
+    match = NEXT_DATA_RE.search(html)
+    if not match:
+        raise ValueError("Lemonade's official jobs payload was not found.")
+    try:
+        payload = json.loads(html_module.unescape(match.group(1)))
+    except json.JSONDecodeError as error:
+        raise ValueError("Lemonade's official jobs payload was invalid.") from error
+    records = find_named_json_list(payload, "allRecipes")
+    if records is None:
+        raise ValueError("Lemonade's complete role list was not found.")
+
+    postings: list[JobPosting] = []
+    seen_urls: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        title = clean_title(str(record.get("title") or record.get("pageTitle") or ""))
+        posting_url = normalize_link(
+            source.careers_url,
+            str(record.get("link") or ""),
+        )
+        employment_type = str(record.get("employmentType") or "")
+        if (
+            not posting_url
+            or posting_url in seen_urls
+            or not is_specific_internship_listing(
+                f"{title} {employment_type}",
+                posting_url,
+            )
+        ):
+            continue
+        seen_urls.add(posting_url)
+        postings.append(
+            JobPosting(
+                title=title,
+                company=source.company,
+                location=clean_title(str(record.get("location") or "Unknown")),
+                posting_url=posting_url,
+                date_collected=collected_date,
+                source_url=source.careers_url,
+                eligibility_text=semantic_page_text(
+                    " ".join(
+                        str(record.get(key) or "")
+                        for key in ("employmentType", "content")
+                    )
+                ),
+            )
+        )
+    return postings
+
+
+def find_named_json_list(value: Any, key: str) -> list[Any] | None:
+    """Return the first list stored under a named key in nested JSON."""
+
+    if isinstance(value, dict):
+        candidate = value.get(key)
+        if isinstance(candidate, list):
+            return candidate
+        for child in value.values():
+            found = find_named_json_list(child, key)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for child in value:
+            found = find_named_json_list(child, key)
+            if found is not None:
+                return found
+    return None
+
+
+def collect_pixar_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+    *,
+    fetch_page: FetchPage | None = None,
+) -> list[JobPosting]:
+    """Page through Disney's official results and retain Pixar internships."""
+
+    loader = fetch_page or fetch_public_page
+    page_html = html
+    page_url = source.careers_url
+    seen_urls: set[str] = set()
+    postings: list[JobPosting] = []
+    exhausted = False
+    total_pages_match = DISNEY_TOTAL_PAGES_RE.search(html)
+    total_pages = int(total_pages_match.group("total")) if total_pages_match else 1
+    page_number = 1
+
+    for _ in range(MAX_ATS_API_PAGES):
+        for result in DISNEY_RESULT_ROW_RE.finditer(page_html):
+            row = result.group("row")
+            job_match = DISNEY_JOB_RE.search(row)
+            brand_match = DISNEY_BRAND_RE.search(row)
+            if not job_match or not brand_match:
+                continue
+            brand = clean_title(strip_html(brand_match.group("brand")))
+            if brand.lower() != "pixar animation studios":
+                continue
+            title = clean_title(strip_html(job_match.group("title")))
+            posting_url = normalize_link(page_url, job_match.group("url"))
+            if (
+                not posting_url
+                or posting_url in seen_urls
+                or not is_specific_internship_listing(title, posting_url)
+            ):
+                continue
+            seen_urls.add(posting_url)
+            location_match = DISNEY_LOCATION_RE.search(row)
+            postings.append(
+                JobPosting(
+                    title=title,
+                    company=source.company,
+                    location=(
+                        clean_title(strip_html(location_match.group("location")))
+                        if location_match
+                        else "Unknown"
+                    ),
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                )
+            )
+
+        if page_number >= total_pages:
+            exhausted = True
+            break
+        page_number += 1
+        page_url = f"{source.careers_url}&p={page_number}"
+        page_html = loader(page_url)
+
+    if not exhausted:
+        raise RuntimeError(f"Pixar pagination exceeded {MAX_ATS_API_PAGES} pages.")
     return postings
 
 

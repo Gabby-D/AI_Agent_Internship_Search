@@ -12,7 +12,9 @@ from internship_search.career_collectors import (
     collect_closed_company_postings,
     collect_direct_job_url_posting,
     collect_greenhouse_postings,
+    collect_goldman_higher_postings,
     collect_json_ld_postings,
+    collect_lemonade_postings,
     collect_pwc_postings,
     collect_semantic_detail_posting,
     collect_postings_for_source,
@@ -21,6 +23,7 @@ from internship_search.career_collectors import (
     collect_oracle_recruiting_postings,
     collect_paycor_postings,
     collect_phenom_postings,
+    collect_pixar_postings,
     collect_workday_postings,
     collect_ycombinator_postings,
     company_names_match,
@@ -803,7 +806,197 @@ def test_collect_oracle_recruiting_postings_pages_until_total_is_reached():
         "Software Engineering Internship",
         "Compliance Intern",
     ]
-    assert postings[0].posting_url.endswith("/sites/CX_1/jobs/job/100")
+    assert postings[0].posting_url.endswith("/sites/CX_1/job/100")
+
+
+def test_collect_oracle_recruiting_derives_host_and_site_from_oracle_url():
+    source = make_source(
+        company="JPMorgan Chase",
+        careers_url=(
+            "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/"
+            "en/sites/CX_1001/requisitions"
+        ),
+        collector="oracle_recruiting_api",
+    )
+    requested_urls: list[str] = []
+
+    def get_json(url: str) -> dict:
+        requested_urls.append(url)
+        return {
+            "items": [
+                {
+                    "TotalJobsCount": 1,
+                    "requisitionList": [
+                        {
+                            "Id": "210690325",
+                            "Title": "2027 Markets Summer Analyst Program",
+                            "PrimaryLocation": "New York, NY, United States",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    postings = collect_oracle_recruiting_postings(
+        source,
+        "<html></html>",
+        "2026-07-27",
+        get_json=get_json,
+    )
+
+    assert requested_urls[0].startswith(
+        "https://jpmc.fa.oraclecloud.com/hcmRestApi/"
+    )
+    assert "siteNumber%3DCX_1001" in requested_urls[0]
+    assert postings[0].posting_url == (
+        "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/"
+        "en/sites/CX_1001/job/210690325"
+    )
+
+
+def test_collect_goldman_higher_pages_all_campus_roles():
+    source = make_source(
+        company="Goldman Sachs",
+        careers_url="https://higher.gs.com/results",
+        collector="goldman_higher",
+    )
+    page_numbers: list[int] = []
+
+    def post_json(url: str, payload: dict) -> dict:
+        assert url.endswith("/gateway/api/v1/graphql")
+        page_number = payload["variables"]["searchQueryInput"]["page"]["pageNumber"]
+        page_numbers.append(page_number)
+        if page_number == 0:
+            items = [
+                {
+                    "roleId": "100_GS_CAMPUS",
+                    "jobTitle": "2027 | Americas | Summer Analyst",
+                    "locations": [
+                        {
+                            "city": "San Francisco",
+                            "state": "California",
+                            "country": "United States",
+                        }
+                    ],
+                    "educationLevel": "Bachelors",
+                    "jobType": {"description": "Internship"},
+                }
+            ]
+        else:
+            items = [
+                {
+                    "roleId": "101_GS_CAMPUS",
+                    "jobTitle": "Senior Engineer",
+                    "locations": [],
+                }
+            ]
+        return {"data": {"roleSearch": {"totalCount": 21, "items": items}}}
+
+    postings = collect_goldman_higher_postings(
+        source,
+        "2026-07-27",
+        post_json=post_json,
+    )
+
+    assert page_numbers == [0, 1]
+    assert [posting.title for posting in postings] == [
+        "2027 | Americas | Summer Analyst"
+    ]
+    assert postings[0].posting_url.endswith("/roles/100_GS_CAMPUS")
+    assert "San Francisco" in postings[0].location
+    assert "Bachelors" in postings[0].eligibility_text
+
+
+def test_collect_lemonade_reads_complete_next_jobs_payload():
+    source = make_source(
+        company="Lemonade",
+        careers_url="https://makers.lemonade.com/",
+        collector="lemonade_jobs",
+    )
+    payload = {
+        "props": {
+            "pageProps": {
+                "allRecipes": [
+                    {
+                        "title": "Product Analytics Intern",
+                        "link": "/role/product-analytics-intern",
+                        "location": "Example City",
+                        "employmentType": "Internship",
+                        "content": "<p>Open to undergraduate students.</p>",
+                    },
+                    {
+                        "title": "Senior Backend Engineer",
+                        "link": "/role/senior-backend-engineer",
+                        "location": "Example City",
+                        "employmentType": "Full-time",
+                    },
+                ]
+            }
+        }
+    }
+    html = (
+        '<script id="__NEXT_DATA__" type="application/json">'
+        f"{__import__('json').dumps(payload)}"
+        "</script>"
+    )
+
+    postings = collect_lemonade_postings(source, html, "2026-07-27")
+
+    assert [posting.title for posting in postings] == ["Product Analytics Intern"]
+    assert postings[0].location == "Example City"
+    assert postings[0].posting_url == (
+        "https://makers.lemonade.com/role/product-analytics-intern"
+    )
+
+
+def test_collect_pixar_pages_disney_results_and_requires_pixar_brand():
+    source = make_source(
+        company="Pixar",
+        careers_url="https://jobs.disneycareers.com/search-jobs/pixar/391/1",
+        collector="pixar_jobs",
+    )
+    page_one = """
+    <table><tr>
+      <td><a href="/job/emeryville/story-intern/391/100"><h2>Story Intern</h2></a></td>
+      <td><span class="job-brand industry">Pixar Animation Studios</span></td>
+      <td><span class="job-location">Emeryville, California, United States</span></td>
+    </tr></table>
+    <span class="pagination-total-pages">of 2</span>
+    """
+    page_two = """
+    <table>
+      <tr>
+        <td><a href="/job/burbank/finance-intern/391/101"><h2>Finance Intern</h2></a></td>
+        <td><span class="job-brand industry">The Walt Disney Company</span></td>
+        <td><span class="job-location">Burbank, California</span></td>
+      </tr>
+      <tr>
+        <td><a href="/job/emeryville/research-intern/391/102"><h2>Research Intern</h2></a></td>
+        <td><span class="job-brand industry">Pixar Animation Studios</span></td>
+        <td><span class="job-location">Emeryville, California</span></td>
+      </tr>
+    </table>
+    """
+    requested_urls: list[str] = []
+
+    def fetch_page(url: str) -> str:
+        requested_urls.append(url)
+        return page_two
+
+    postings = collect_pixar_postings(
+        source,
+        page_one,
+        "2026-07-27",
+        fetch_page=fetch_page,
+    )
+
+    assert requested_urls == [
+        "https://jobs.disneycareers.com/search-jobs/pixar/391/1&p=2"
+    ]
+    assert [posting.title for posting in postings] == [
+        "Story Intern",
+        "Research Intern",
+    ]
 
 
 def test_collect_bank_of_america_postings_pages_through_campus_feed():

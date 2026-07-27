@@ -25,8 +25,12 @@ $WeeklyEmailWrapper = Join-Path $PSScriptRoot "run_weekly_email.ps1"
 
 $Settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
+    -WakeToRun `
     -AllowStartIfOnBatteries `
-    -DontStopIfGoingOnBatteries
+    -DontStopIfGoingOnBatteries `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 5) `
+    -MultipleInstances IgnoreNew
 
 function Build-WrapperArguments {
     param(
@@ -83,12 +87,12 @@ Register-ScheduledTask `
     -Action $WeeklyEmailAction `
     -Trigger $WeeklyEmailTrigger `
     -Settings $Settings `
-    -Description "Send the weekly internship email summary on Monday. Missed runs start when the computer next becomes available." `
+    -Description "Refresh internship results and send the weekly email on Monday. Missed or failed runs are retried." `
     -Force | Out-Null
 
-Write-Host "Registered company-discovery task '$CompanyDiscoveryTaskName' (Monday at $CompanyDiscoveryAt, StartWhenAvailable enabled)."
-Write-Host "Registered collection task '$CollectionTaskName' (Daily at $CollectionAt, StartWhenAvailable enabled)."
-Write-Host "Registered weekly email task '$WeeklyEmailTaskName' (Monday at $WeeklyEmailAt, StartWhenAvailable enabled)."
+Write-Host "Registered company-discovery task '$CompanyDiscoveryTaskName' (Monday at $CompanyDiscoveryAt, wake/catch-up/retry enabled)."
+Write-Host "Registered collection task '$CollectionTaskName' (Daily at $CollectionAt, wake/catch-up/retry enabled)."
+Write-Host "Registered weekly email task '$WeeklyEmailTaskName' (Monday at $WeeklyEmailAt, refresh-before-send and wake/catch-up/retry enabled)."
 Write-Host "Company-discovery wrapper: $CompanyDiscoveryWrapper"
 Write-Host "Collection wrapper: $CollectionWrapper"
 Write-Host "Weekly email wrapper: $WeeklyEmailWrapper"

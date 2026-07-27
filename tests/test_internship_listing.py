@@ -20,6 +20,13 @@ def test_specific_summer_analyst_intern_is_included():
     )
 
 
+def test_research_intern_is_not_mistaken_for_search_navigation():
+    assert is_specific_internship_listing(
+        "Research Intern",
+        "https://jobs.example.com/job/research-intern/123",
+    )
+
+
 def test_bain_program_page_is_excluded():
     assert not is_specific_internship_listing(
         "Internships & Programs",

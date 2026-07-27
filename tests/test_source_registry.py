@@ -169,6 +169,16 @@ def test_additional_recovered_sources_use_complete_official_collectors():
             "job-boards.greenhouse.io/everstreamanalytics",
             "greenhouse_api",
         ),
+        "Goldman Sachs": ("higher.gs.com/results", "goldman_higher"),
+        "JPMorgan Chase": (
+            "jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001",
+            "oracle_recruiting_api",
+        ),
+        "Lemonade": ("makers.lemonade.com", "lemonade_jobs"),
+        "Pixar": (
+            "jobs.disneycareers.com/search-jobs/pixar/391/1",
+            "pixar_jobs",
+        ),
     }
 
     for company_name, (url_part, collector) in expected.items():
@@ -177,6 +187,11 @@ def test_additional_recovered_sources_use_complete_official_collectors():
         )
         assert url_part in source.careers_url
         assert source.collector == collector
+
+    clif = build_company_source(
+        Company(name="Clif Bar and Company", website="", has_connection=False)
+    )
+    assert clif.alternate_careers_urls == ()
 
 
 def test_build_company_source_falls_back_to_website_for_unknown_company():

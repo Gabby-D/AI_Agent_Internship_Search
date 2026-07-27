@@ -158,7 +158,7 @@ to other affected companies one at a time.
 
 - Nokia's official jobs portal uses Oracle Recruiting Cloud and exposes the
   API host and career-site number in its public page.
-- A reusable Oracle collector requests 25 records at a time, advances offsets
+- A reusable Oracle collector requests up to 100 records at a time, advances offsets
   until the API's total is reached, and filters internship/co-op titles
   locally.
 - Live validation paged all 219 keyword matches, identified 17 internship or
@@ -170,6 +170,51 @@ to other affected companies one at a time.
 - Source configuration now uses that board directly with the existing
   complete Greenhouse collector.
 - Live validation found one current internship record and no source error.
+
+### Goldman Sachs
+
+- Source configuration now uses Goldman Sachs' official Higher campus-role
+  service instead of the informational programs index.
+- A reusable GraphQL collector requests every `CAMPUS` result page, retains
+  exact role IDs and locations, and filters internship and summer-analyst
+  titles locally.
+- Live validation paged 153 current campus roles, identified 29 internship
+  records for downstream preference filtering, and reported no source error.
+
+### JPMorgan Chase
+
+- Source configuration now uses the official Oracle Recruiting career site
+  (`CX_1001`) linked from JPMorgan Chase's student careers experience.
+- The Oracle collector can derive the public API host and site number directly
+  from an Oracle career URL, pages the full result count in batches of up to
+  100, and builds stable official role links.
+- Live validation identified 91 internship or summer-analyst records for
+  downstream preference filtering and reported no source error.
+
+### Lemonade
+
+- The former general corporate URL was replaced with Lemonade's current
+  official Makers careers site.
+- A reusable Next.js collector reads the site's complete structured
+  `allRecipes` role list rather than relying on visible first-page links.
+- Live validation found no current internship titles and no source error.
+
+### Pixar
+
+- Pixar recruiting is handled through Disney Careers. The configured source
+  now uses Disney's working Pixar keyword route instead of an ignored query
+  parameter.
+- A reusable collector follows the site's explicit total-page count, keeps
+  only rows branded `Pixar Animation Studios`, and then filters internship
+  titles locally.
+- Live validation searched every current Pixar result page, found no current
+  Pixar internship titles, and reported no source error.
+
+### Classification Regression Fixed
+
+- `Research Intern` was incorrectly matching the generic navigation fragment
+  `search intern`. Generic search-page detection now requires that phrase to
+  begin the title, preserving legitimate research internship listings.
 
 ## Handoff Snapshot (2026-07-23)
 
@@ -265,6 +310,80 @@ Some older generated location summaries can display a mojibake ellipsis
 (`â€¦`) rather than `…`. This was observed in existing rows during visual
 verification and was not part of the source-recovery changes. Diagnose the
 generated-data encoding path separately without changing private preferences.
+
+## Handoff Update (2026-07-27)
+
+The next source-recovery batch is implemented locally but has not been pushed
+to Git. It covers Clif Bar and Company, Deloitte, Goldman Sachs, JPMorgan
+Chase, Lemonade, and Pixar.
+
+### Verified Results
+
+| Company | Official complete source | Internship candidates | Pass current private filters | Source issue |
+| --- | --- | ---: | ---: | --- |
+| Clif Bar and Company | Parent-company Workday search | 0 | 0 | No |
+| Deloitte | Avature filtered RSS plus details | 2 | 2 | No |
+| Goldman Sachs | Higher campus GraphQL API | 29 | 0 | No |
+| JPMorgan Chase | Oracle Recruiting `CX_1001` API | 91 | 0 | No |
+| Lemonade | Makers Next.js structured role list | 0 | 0 | No |
+| Pixar | Paginated Disney Careers Pixar results | 0 | 0 | No |
+
+The candidate counts are current-source results before private location,
+undergraduate, and preference filtering. The full unattended workflow
+registered 116 sources, collected 378 candidates, retained 18, and recorded 23
+remaining source-error entries after removing Clif Bar's obsolete fallback
+page. Email generation and sending were explicitly skipped.
+
+### Verification State
+
+- Full package suite: `279 passed`.
+- Rebuilt executable:
+  `app/Internship Search.exe`.
+- The rebuilt executable is running at `http://127.0.0.1:8765/`.
+- The local dashboard API returns HTTP 200, 18 filtered postings, successful
+  scan results for all six companies, and no source issue for any of them.
+- Generated output and private inputs remain local and Git-ignored.
+
+### Implementation Added in This Batch
+
+- `goldman_higher`: complete Goldman Sachs campus-role GraphQL pagination.
+- Oracle Recruiting URL-derived host/site support and batches of up to 100,
+  used by JPMorgan Chase as well as existing Oracle sources.
+- `lemonade_jobs`: complete structured `allRecipes` extraction.
+- `pixar_jobs`: explicit Disney page-count pagination plus exact Pixar brand
+  filtering.
+- A specific-listing regression fix for legitimate `Research Intern` titles.
+- Clif Bar's obsolete informational alternate URL was removed because the
+  complete Workday source succeeds and the fallback generated a false 403
+  warning.
+
+### Continuation Point
+
+If continuing source recovery, choose the next company still marked
+`Source issue` in the Companies page. Do not redo the six companies in this
+batch unless their official source changes or a future scan records a new
+failure. Before pushing, review the diff, run the full tests, and confirm no
+private or generated files are staged.
+
+### Scheduler Reliability Repair (2026-07-27)
+
+- Windows power events show that the laptop was asleep at the Monday 10:00 AM
+  email time and resumed at 10:27 AM.
+- The missed discovery, collection, and email tasks then started together and
+  were externally interrupted with status `0xC000013A`; the email wrapper did
+  not start far enough to create its normal log.
+- All three tasks are now registered with wake, catch-up, battery-safe
+  execution, three retries at five-minute intervals, and `IgnoreNew` instance
+  handling.
+- All three wrapper scripts use one named local mutex, preventing simultaneous
+  automation from racing over generated files after a wake-up.
+- The weekly email wrapper now runs a fresh full collection with job boards
+  and sends the email only after that workflow completes.
+- Windows accepted and reports the intended settings for all three registered
+  tasks.
+- A current weekly email was sent successfully after the repair. Its local
+  summary reported 13 new internships and 23 job-site problems; sent history
+  was updated only after SMTP success.
 
 ## Acceptance Criteria
 

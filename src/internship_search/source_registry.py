@@ -103,13 +103,13 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         collector="mckinsey_jobs",
     ),
     "pixar": SourceMetadata(
-        careers_url="https://jobs.disneycareers.com/search-jobs?keywords=pixar%20intern",
+        careers_url="https://jobs.disneycareers.com/search-jobs/pixar/391/1",
         source_type="company_careers_search",
-        notes="Pixar openings are searched on Disney's current careers portal.",
-        alternate_careers_urls=(
-            "https://www.pixar.com/internships",
-            "https://www.pixar.com/careers",
+        notes=(
+            "Page through Disney's complete Pixar keyword results, retain only "
+            "Pixar Animation Studios roles, then filter internship titles locally."
         ),
+        collector="pixar_jobs",
     ),
     "levi's": SourceMetadata(
         careers_url="https://careers.levistrauss.com/go/Internships-%26-Entry-Level-Opportunities/8775602/",
@@ -222,12 +222,34 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         ),
     ),
     "goldman sachs": SourceMetadata(
-        careers_url=(
-            "https://www.goldmansachs.com/careers/students/"
-            "programs-and-internships"
+        careers_url="https://higher.gs.com/results",
+        source_type="company_careers_search",
+        notes=(
+            "Page through Goldman Sachs' complete official campus-role API and "
+            "filter current internship and summer-analyst listings locally."
         ),
-        source_type="company_careers_page",
-        notes="Official Goldman Sachs programs and internships index.",
+        collector="goldman_higher",
+    ),
+    "jpmorgan chase": SourceMetadata(
+        careers_url=(
+            "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/"
+            "en/sites/CX_1001/requisitions"
+        ),
+        source_type="company_careers_search",
+        notes=(
+            "Page through JPMorgan Chase's complete official Oracle Recruiting "
+            "campus site and filter internship and summer-analyst titles locally."
+        ),
+        collector="oracle_recruiting_api",
+    ),
+    "lemonade": SourceMetadata(
+        careers_url="https://makers.lemonade.com/",
+        source_type="company_careers_search",
+        notes=(
+            "Read Lemonade's complete official structured role list and filter "
+            "specific internships locally."
+        ),
+        collector="lemonade_jobs",
     ),
     "bank of america": SourceMetadata(
         careers_url=(
@@ -279,9 +301,6 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         notes=(
             "Clif Bar recruiting is handled by parent company Mondelēz; scan "
             "the complete public Workday result set for Clif."
-        ),
-        alternate_careers_urls=(
-            "https://www.clifbar.com/who-we-are/careers",
         ),
         collector="workday_api",
     ),
