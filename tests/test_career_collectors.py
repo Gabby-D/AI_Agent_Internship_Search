@@ -16,6 +16,7 @@ from internship_search.career_collectors import (
     collect_general_dynamics_postings,
     collect_goldman_higher_postings,
     collect_json_ld_postings,
+    collect_jibe_postings,
     collect_lemonade_postings,
     collect_eightfold_postings,
     collect_pwc_postings,
@@ -23,10 +24,14 @@ from internship_search.career_collectors import (
     collect_postings_for_source,
     collect_lever_postings,
     collect_mckinsey_postings,
+    collect_notion_public_page_postings,
     collect_oracle_recruiting_postings,
+    collect_parked_company_domain_postings,
     collect_paycor_postings,
     collect_phenom_postings,
     collect_pixar_postings,
+    collect_profusa_postings,
+    collect_successfactors_postings,
     collect_workday_postings,
     collect_ycombinator_postings,
     company_names_match,
@@ -715,6 +720,22 @@ def test_collect_closed_company_requires_current_official_notice():
     ) == []
 
 
+def test_collect_parked_company_domain_requires_current_redirect():
+    source = make_source(
+        company="Symbio",
+        careers_url="https://symb.io/careers",
+        collector="parked_company_domain",
+    )
+
+    assert collect_parked_company_domain_postings(
+        source,
+        (
+            "<script>window.onload=function(){"
+            'window.location.href="/lander"}</script>'
+        ),
+    ) == []
+
+
 def test_collect_avature_rss_reads_every_item_and_detail_locations():
     source = make_source(
         company="Deloitte",
@@ -1286,7 +1307,10 @@ def test_collect_adp_workforce_now_reads_complete_board():
 def test_collect_eightfold_pages_search_variants_and_loads_details():
     source = make_source(
         company="Morgan Stanley",
-        careers_url="https://morganstanley.eightfold.ai/careers",
+        careers_url=(
+            "https://morganstanley.eightfold.ai/careers"
+            "?domain=morganstanley.com"
+        ),
         collector="eightfold_pcsx",
     )
     search_terms: list[str] = []
@@ -1335,6 +1359,90 @@ def test_collect_eightfold_pages_search_variants_and_loads_details():
     assert "undergraduate" in postings[0].eligibility_text.lower()
 
 
+def test_collect_notion_public_page_reads_direct_child_role_pages():
+    source = make_source(
+        company="Novi Connect",
+        careers_url=(
+            "https://noviconnect.notion.site/"
+            "Careers-at-Novi-3dc7cb55c4684965a7b8d4f83cfaee5c"
+        ),
+        collector="notion_public_page",
+    )
+    request_bodies: list[dict] = []
+
+    def post_json(_url: str, body: dict) -> dict:
+        request_bodies.append(body)
+        return {
+            "recordMap": {
+                "block": {
+                    "intern-id": {
+                        "value": {
+                            "value": {
+                                "id": "11111111-2222-3333-4444-555555555555",
+                                "type": "page",
+                                "parent_id": (
+                                    "3dc7cb55-c468-4965-a7b8-d4f83cfaee5c"
+                                ),
+                                "alive": True,
+                                "properties": {
+                                    "title": [["Business Analyst Intern"]]
+                                },
+                            }
+                        }
+                    },
+                    "full-time-id": {
+                        "value": {
+                            "value": {
+                                "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                                "type": "page",
+                                "parent_id": (
+                                    "3dc7cb55-c468-4965-a7b8-d4f83cfaee5c"
+                                ),
+                                "alive": True,
+                                "properties": {
+                                    "title": [["Enterprise Account Executive"]]
+                                },
+                            }
+                        }
+                    },
+                }
+            },
+            "cursors": [],
+        }
+
+    postings = collect_notion_public_page_postings(
+        source, "2026-07-27", post_json=post_json
+    )
+
+    assert request_bodies == [
+        {
+            "page": {"id": "3dc7cb55-c468-4965-a7b8-d4f83cfaee5c"},
+            "cursor": {"stack": []},
+            "verticalColumns": False,
+        }
+    ]
+    assert [posting.title for posting in postings] == ["Business Analyst Intern"]
+    assert postings[0].posting_url.endswith(
+        "business-analyst-intern-11111111222233334444555555555555"
+    )
+
+
+def test_collect_profusa_complete_page_can_report_no_internships():
+    source = make_source(
+        company="Profusa",
+        careers_url="https://profusa.com/careers-profusa/",
+        collector="profusa_careers",
+    )
+
+    postings = collect_profusa_postings(
+        source,
+        "<html><title>Careers - Profusa</title><body>Join our team.</body></html>",
+        "2026-07-27",
+    )
+
+    assert postings == []
+
+
 def test_collect_general_dynamics_preserves_bootstrap_auth_and_filters_results():
     source = make_source(
         company="General Dynamics",
@@ -1381,3 +1489,99 @@ def test_collect_general_dynamics_preserves_bootstrap_auth_and_filters_results()
     assert len(postings) == 1
     assert postings[0].title == "Fall Intern - Engineering"
     assert postings[0].location == "San Jose, CA, US"
+
+
+def test_greenhouse_prefers_explicit_job_posting_location_metadata():
+    source = make_source(
+        company="Cloudflare",
+        careers_url="https://job-boards.greenhouse.io/cloudflare",
+        collector="greenhouse_api",
+    )
+
+    postings = collect_greenhouse_postings(
+        source,
+        "2026-07-27",
+        get_json=lambda _url: {
+            "jobs": [
+                {
+                    "title": "Brand Social Media Intern",
+                    "absolute_url": "https://job-boards.greenhouse.io/cloudflare/jobs/1",
+                    "location": {"name": "In-Office"},
+                    "metadata": [
+                        {
+                            "name": "Job Posting Location",
+                            "value": ["San Francisco, CA"],
+                        }
+                    ],
+                    "content": "Open to undergraduate students.",
+                }
+            ]
+        },
+    )
+
+    assert postings[0].location == "San Francisco, CA"
+
+
+def test_collect_jibe_pages_and_filters_to_company_labelled_internships():
+    source = make_source(
+        company="SodaStream",
+        careers_url="https://www.pepsicojobs.com/main/jobs?keywords=SodaStream",
+        collector="jibe_jobs",
+    )
+    pages: list[int] = []
+
+    def get_json(url: str) -> dict:
+        page = int(parse_qs(urlparse(url).query)["page"][0])
+        pages.append(page)
+        record = {
+            "slug": str(page),
+            "req_id": str(page),
+            "title": "HR Intern (SodaStream)" if page == 1 else "Legal Internship",
+            "description": "SodaStream business" if page == 1 else "Other PepsiCo team",
+            "full_location": "Tilburg, Netherlands",
+        }
+        return {
+            "jobs": [{"data": record}],
+            "totalCount": 101 if page == 1 else 1,
+        }
+
+    postings = collect_jibe_postings(
+        source,
+        "2026-07-27",
+        get_json=get_json,
+    )
+
+    assert pages == [1, 2]
+    assert [posting.title for posting in postings] == ["HR Intern (SodaStream)"]
+
+
+def test_collect_successfactors_pages_and_recognizes_hebrew_student_role():
+    source = make_source(
+        company="Osem",
+        careers_url="https://jobdetails.nestle.com/search/?locationsearch=Israel",
+        collector="successfactors_html",
+    )
+    first_page = """
+    <span class="paginationLabel">Results 1 – 1 of <b>2</b></span>
+    <tr class="data-row">
+      <td><a class="jobTitle-link" href="/job/one">סטודנט/ית לשיווק</a></td>
+      <td class="colLocation">Tel Aviv, IL</td>
+    </tr>
+    """
+    second_page = """
+    <span class="paginationLabel">Results 2 – 2 of <b>2</b></span>
+    <tr class="data-row">
+      <td><a class="jobTitle-link" href="/job/two">מנהל מכירות</a></td>
+      <td class="colLocation">Haifa, IL</td>
+    </tr>
+    """
+
+    postings = collect_successfactors_postings(
+        source,
+        first_page,
+        "2026-07-27",
+        fetch_page=lambda url: second_page,
+    )
+
+    assert [posting.title for posting in postings] == ["סטודנט/ית לשיווק"]
+    assert postings[0].location == "Tel Aviv, IL"

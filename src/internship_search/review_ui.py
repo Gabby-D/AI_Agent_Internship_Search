@@ -735,8 +735,18 @@ def render_review_page() -> str:
     const statusOrder = ["to_review", "applied", "not_interested", "archived"];
 
     const sections = [
-      { key: "to_review", title: "To review", match: posting => posting.review_status === "to_review" },
+      {
+        key: "to_review",
+        title: "To review",
+        match: posting => posting.review_status === "to_review" && posting.is_recommended !== false
+      },
       { key: "applied", title: "Applied", match: posting => posting.review_status === "applied" },
+      {
+        key: "other_matching",
+        title: "Other Matching Internships",
+        description: "These internships passed your location, undergraduate, and role-preference filters, but scored below the recommendation cutoff.",
+        match: posting => posting.review_status === "to_review" && posting.is_recommended === false
+      },
       { key: "not_interested", title: "Not interested", match: posting => posting.review_status === "not_interested" },
       { key: "archived", title: "Archived", match: posting => posting.review_status === "archived" }
     ];
@@ -1558,6 +1568,7 @@ def render_review_page() -> str:
       container.innerHTML = visibleSections.map(section => `
           <div class="card">
             <h2>${section.title} <span class="empty" style="display:inline;padding:0;">(${section.sectionPostings.length})</span></h2>
+            ${section.description ? `<p class="empty">${section.description}</p>` : ""}
             ${renderTable(section.sectionPostings, statusOptions)}
           </div>
         `).join("");

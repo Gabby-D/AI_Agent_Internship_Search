@@ -311,6 +311,75 @@ Some older generated location summaries can display a mojibake ellipsis
 verification and was not part of the source-recovery changes. Diagnose the
 generated-data encoding path separately without changing private preferences.
 
+## Requested Company Batch (2026-07-27)
+
+Fourteen unambiguous companies were added to the ignored private company list:
+Rafael, Wix, Cloudflare, Elbit Systems, Dell, HP, IBM, Intel, Oracle, Osem,
+The Coca-Cola Company, SodaStream, CyberArk, and Toyota. The requested name
+`Lbit` was not added because it could not be distinguished safely from the
+separately requested Elbit Systems without a website or full legal name.
+
+### Live Collection Result
+
+The focused scan collected 72 unique current internship/student candidates
+after company attribution and duplicate cleanup:
+
+| Company | Candidates | Collection status |
+| --- | ---: | --- |
+| Cloudflare | 9 | Complete Greenhouse board |
+| Dell | 5 | Complete Oracle Recruiting board |
+| HP | 20 | Complete Eightfold searches |
+| Intel | 19 | Complete Workday board |
+| Oracle | 14 | Complete Oracle Recruiting board |
+| Osem | 4 | Complete Israel SuccessFactors search |
+| SodaStream | 1 | Complete PepsiCo Jibe search, restricted to SodaStream-labelled roles |
+| CyberArk | 0 | Complete parent Workday board; no CyberArk-labelled internships |
+| Toyota | 0 | Complete Phenom search returned no internship-title matches |
+| Rafael | 0 | Source issue: official portal returned HTTP 491 |
+| Wix | 0 | Source issue: JavaScript-only layout is not yet supported |
+| Elbit Systems | 0 | Source issue: current layout is not yet supported |
+| IBM | 0 | Source issue: current dynamic careers layout is not yet supported |
+| The Coca-Cola Company | 0 | Source issue: official careers request timed out |
+
+Downstream private filters retained two target-location candidates: an Intel
+non-technical student project-management role in Haifa and an Oracle
+data-strategy internship in Redwood City. Both scored below the dashboard's
+recommendation threshold, so they remain recorded but are not promoted as
+recommendations. Cloudflare's San Francisco social-media internship and HP's
+San Francisco software-engineering internship were correctly excluded by
+explicit private role dislikes.
+
+### Reusable Implementation
+
+- Greenhouse collection now prefers explicit `Job Posting Location` metadata
+  over generic labels such as `In-Office`.
+- A bounded Jibe API collector pages official parent-company search results
+  and retains only roles explicitly labelled for the requested company.
+- Standard SuccessFactors HTML pagination is reusable outside Bayer, and
+  Hebrew student titles are recognized as internship-equivalent listings.
+- Parent-company Workday collection can retain only CyberArk-labelled roles,
+  avoiding the false attribution of all Palo Alto Networks internships.
+- Configured company-source names remain authoritative when a title contains
+  wording such as `Internship at ...`.
+- The location filter no longer mistakes San Jose, Costa Rica for the Bay Area.
+
+### Continuation Point
+
+Resolve the four dynamic/blocked sources one at a time using the Decision Order
+above, beginning with Wix or Elbit Systems. Rafael needs a user-confirmed
+working official URL or confirmation that the official portal opens normally
+on the same laptop/network. Do not treat these source issues as verified zero
+openings. No email was sent and no Git push was performed in this batch.
+
+### Dashboard Visibility Follow-up
+
+The review dashboard no longer discards otherwise valid matches solely because
+their fit score is below 60. Unreviewed lower-scoring roles appear in a
+separate **Other Matching Internships** section. Review status takes priority:
+an applied lower-scoring role remains in **Applied**, and dismissed or archived
+roles remain in their respective sections. Hard location, undergraduate, and
+explicit-dislike exclusions still apply before any role reaches the dashboard.
+
 ## Handoff Update (2026-07-27)
 
 The next source-recovery batch is implemented locally but has not been pushed
@@ -447,6 +516,78 @@ this repair.
 - A current weekly email was sent successfully after the repair. Its local
   summary reported 13 new internships and 23 job-site problems; sent history
   was updated only after SMTP success.
+
+### Northrop Grumman, Novi, PayPal, PowerBar, and Profusa (2026-07-27)
+
+| Company | Complete source | Current internship candidates | Source issue |
+|---|---|---:|---|
+| Northrop Grumman | Eightfold PCSX public search/detail APIs | 1 | No |
+| Novi Connect | Public Notion page API | 0 | No |
+| PayPal | Eightfold PCSX public search/detail APIs | 0 | No |
+| PowerBar | Premier Nutrition Paycor board | 0 | No |
+| Profusa | Current official static careers page | 0 | No |
+
+These counts precede the existing location, undergraduate, and explicit
+preference filters. Northrop Grumman's current candidate is a software
+engineering internship in Melbourne, Florida, so it is collected for source
+completeness but excluded from recommendations by the user's local filters.
+
+Implementation details:
+
+- The reusable Eightfold collector now reads the tenant domain from source
+  configuration rather than assuming one company. Northrop Grumman, PayPal,
+  and Morgan Stanley therefore share the same paginated implementation.
+- Novi's corporate careers page links to a public Notion page. The reusable
+  Notion collector pages the anonymous public page API and inspects every
+  direct child role page; Novi's current roles are not internships.
+- PowerBar is monitored through the complete Paycor board linked by Premier
+  Nutrition. Its current openings are not internships.
+- Profusa's obsolete careers URL was replaced with its current official page.
+  A successful semantic page check with no role links is a verified healthy
+  zero-opening result.
+
+Verification:
+
+- Focused collector and registry suite: `55 passed`.
+- Live scans completed for all five companies without a source warning.
+- Dashboard data was refreshed after the live scans.
+- No email was sent and no Git push was performed during this batch.
+
+### Stellarus, Symbio, Wiz, and Zipline (2026-07-27)
+
+| Company | Complete source | Current internship candidates | Source issue |
+|---|---|---:|---|
+| Stellarus | Oracle Recruiting public API | 0 | No |
+| Symbio | Verified former-domain parking redirect | 0 | No |
+| Wiz | Greenhouse public board API | 0 | No |
+| Zipline | Greenhouse public board API | 21 | No |
+
+These are source-complete counts before local preference filtering. Zipline's
+21 current Fall 2026 internships include nine Bay Area titles that pass the
+deterministic location and explicit-title-dislike filters. Local scoring gives
+all nine a score below the webpage and email recommendation threshold, so none
+is currently presented as a recommendation.
+
+Implementation details:
+
+- Stellarus's stale Google share link was resolved to the intended healthcare
+  company. Its official careers page links to an Oracle Recruiting board, which
+  is now paged through the existing reusable Oracle collector.
+- The former Symbio Robotics domain currently redirects to a parking page. A
+  dedicated collector verifies that exact state and treats it as a complete
+  zero-opening result; any future change causes a visible source diagnostic
+  instead of silently assuming the company remains inactive.
+- Wiz's official careers page embeds the `wizinc` Greenhouse board. The complete
+  public board currently has no specific internship listing.
+- Zipline now uses its `flyzipline` Greenhouse board directly, returning the
+  full public result set rather than relying on the first rendered careers page.
+
+Verification:
+
+- Focused collector and registry suite: `56 passed`.
+- Live scans completed for all four companies without a source warning.
+- Dashboard data was refreshed after applying private local filters.
+- No email was sent and no Git push was performed during this batch.
 
 ## Acceptance Criteria
 

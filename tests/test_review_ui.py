@@ -290,7 +290,7 @@ def test_load_review_dashboard_uses_live_company_connection_status(tmp_path):
     ]
 
 
-def test_load_review_dashboard_hides_low_fit_scored_role(tmp_path):
+def test_load_review_dashboard_includes_low_fit_role_as_other_match(tmp_path):
     data_dir = tmp_path / "data"
     private_dir = tmp_path / "private"
     write_private_inputs(private_dir)
@@ -314,7 +314,54 @@ def test_load_review_dashboard_hides_low_fit_scored_role(tmp_path):
 
     dashboard = load_review_dashboard(data_dir, private_dir)
 
-    assert dashboard["postings"] == []
+    assert len(dashboard["postings"]) == 1
+    assert dashboard["postings"][0]["title"] == "Generic Recruiting Intern"
+    assert dashboard["postings"][0]["score"] == 35
+    assert dashboard["postings"][0]["is_recommended"] is False
+
+
+def test_low_fit_applied_role_remains_applied_in_dashboard(tmp_path):
+    data_dir = tmp_path / "data"
+    private_dir = tmp_path / "private"
+    write_private_inputs(private_dir)
+    posting = make_filtered_posting(title="Associate Consultant Internship")
+    write_filtered_postings_jsonl(
+        [posting],
+        data_dir / "filtered_postings.jsonl",
+    )
+    write_scored_postings_jsonl(
+        [
+            replace(
+                make_scored_posting(),
+                title="Associate Consultant Internship",
+                score=53,
+                fit_level="medium",
+            )
+        ],
+        data_dir / "scored_postings.jsonl",
+    )
+    write_source_registry([make_source()], data_dir / "source_registry.json")
+    set_posting_review(
+        posting_url=posting.posting_url,
+        status="applied",
+        output_path=data_dir / "posting_reviews.json",
+    )
+
+    dashboard = load_review_dashboard(data_dir, private_dir)
+
+    assert len(dashboard["postings"]) == 1
+    assert dashboard["postings"][0]["review_status"] == "applied"
+    assert dashboard["postings"][0]["is_recommended"] is False
+
+
+def test_review_page_defines_other_matching_section_after_applied():
+    page = render_review_page()
+
+    assert "Other Matching Internships" in page
+    assert page.index('title: "Applied"') < page.index(
+        'title: "Other Matching Internships"'
+    )
+    assert "posting.is_recommended === false" in page
 
 
 def test_load_review_dashboard_includes_latest_company_scan_status(tmp_path):

@@ -26,6 +26,10 @@ FLEXIBLE_LOCATION_MARKERS = (
 
 DEFAULT_LOCATION_PREFERENCES_PATH = Path("private/location_preferences.txt")
 LOCATION_FILTER_REASON = "Excluded because location does not match the user's preference of location."
+AMBIGUOUS_CITY_COUNTRY_GUARDS = {
+    # Avoid treating San Jose, Costa Rica as the Bay Area city.
+    "costa rica": ("san jose",),
+}
 
 
 def normalize_location_text(*parts: str) -> str:
@@ -76,6 +80,13 @@ def matches_allowed_location(
 def _location_text_is_allowed(text: str, preferred_markers: tuple[str, ...]) -> bool:
     if not text:
         return False
+    for country, ambiguous_cities in AMBIGUOUS_CITY_COUNTRY_GUARDS.items():
+        if (
+            country in text
+            and country not in preferred_markers
+            and any(city in text for city in ambiguous_cities)
+        ):
+            return False
     if contains_marker(text, REMOTE_MARKERS):
         if "(" in text or ")" in text:
             return contains_marker(text, preferred_markers)

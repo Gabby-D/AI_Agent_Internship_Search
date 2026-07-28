@@ -79,10 +79,14 @@ def enrich_job_posting_local(posting: JobPosting, *, snippet: str = "") -> JobPo
 
     if is_missing_company(company):
         company = infer_company_from_posting_url(posting.posting_url) or company
-    if is_missing_company(posting.company):
+    if is_missing_company(posting.company) or posting.company.lower().startswith(
+        "job board"
+    ):
         company = prefer_company(posting.company, company)
     else:
-        company = prefer_company(company, posting.company)
+        # A configured company career source is authoritative. Do not mistake
+        # role titles such as "Internship at HP Store Benelux" for a company name.
+        company = posting.company
 
     title = prefer_title(posting.title, title)
     location = prefer_location(location, infer_location_from_snippet(snippet))

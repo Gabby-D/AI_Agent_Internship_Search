@@ -22,6 +22,8 @@ INTERNSHIP_TERM_PATTERNS = (
     re.compile(r"\bsummer associate\b", re.IGNORECASE),
     re.compile(r"\bassociate consultant intern\b", re.IGNORECASE),
     re.compile(r"\bco-?op\b", re.IGNORECASE),
+    re.compile(r"סטודנט(?:ית|ים|יות)?"),
+    re.compile(r"סטודנט\s*[/.-]\s*ית"),
 )
 
 GENERIC_EXACT_TITLES = {
@@ -120,6 +122,7 @@ ROLE_TITLE_TERMS = (
     "research",
     "risk",
     "technology",
+    "סטודנט",
 )
 
 LONG_NARRATIVE_TITLE_WORDS = 12
@@ -325,6 +328,8 @@ def has_specific_job_url(url: str) -> bool:
 
 
 def has_specific_job_title(title: str) -> bool:
+    if re.search(r"סטודנט(?:ית|ים|יות)?|סטודנט\s*[/.-]\s*ית", title):
+        return len(title.split()) >= 2
     if re.search(r"\b20(26|27)\b", title):
         return True
     if re.search(r"\bsummer\b", title) and re.search(r"\bintern", title):

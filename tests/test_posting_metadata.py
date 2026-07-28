@@ -105,6 +105,19 @@ def test_enrich_job_posting_uses_lever_api_payload(monkeypatch):
     assert enriched.location == "Honolulu, HI"
 
 
+def test_enrich_keeps_configured_company_when_title_contains_at_phrase():
+    posting = make_posting(
+        title="Internship at HP Store Benelux",
+        company="HP",
+        location="Belgium",
+        posting_url="https://apply.hp.com/careers/job/123",
+    )
+
+    enriched = enrich_job_posting(posting, use_remote_apis=False)
+
+    assert enriched.company == "HP"
+
+
 def test_merge_posting_metadata_prefers_known_location():
     primary = make_posting(location="Unknown", company="Virtu Financial")
     secondary = make_posting(location="New York", company="...")

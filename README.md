@@ -82,8 +82,19 @@ For supported public boards, the collector uses complete-list APIs instead of re
 - Greenhouse and Ashby return all currently published jobs in one board response.
 - Lever is read repeatedly with `skip`/`limit` until no later results remain.
 - Workday is read repeatedly through its public careers endpoint until its reported total is reached, with HTML parsing as a fallback.
+- Eightfold PCSX career sites are searched across the supported internship-title
+  variants and paged to their reported totals; matching job details provide
+  locations and public eligibility text.
+- Public Notion careers pages are read through their anonymous page API so all
+  current direct-child role pages are checked without browser automation.
+- Paycor career boards are read from their complete public job-listing markup.
 - Phenom career portals are read repeatedly through their public search widget
   until the reported result total is reached.
+- Jibe career portals are read through their public paginated jobs API, with
+  parent-company results restricted to roles explicitly labelled for the
+  requested company.
+- Standard SAP SuccessFactors searches are paged to their reported total;
+  Israeli student-role titles are treated as internship-equivalent listings.
 - Consider-hosted boards are read through every available result batch and reused across companies sharing the same board.
 - Breezy boards are treated as complete even when the board currently has no
   published internships.
@@ -95,7 +106,7 @@ For supported public boards, the collector uses complete-list APIs instead of re
   results beyond the first visible page. Public qualification text is retained
   locally so graduate-only roles can be removed accurately.
 
-All retrieved jobs are then filtered locally for specific undergraduate-eligible internship listings, the private location policy, and explicit role dislikes. A posting whose title clearly conflicts with a private dislike is excluded instead of merely receiving a lower score. Roles intended only for graduate, master's, MBA, PhD, doctoral, or other advanced-degree students are excluded; roles explicitly open to undergraduates remain eligible even when graduate students may also apply. Sites requiring authentication, blocking public access, or exceeding a safety limit are recorded in `data/collection_errors.jsonl` and included in the weekly email so they can be corrected. No collector attempts to bypass authentication or anti-bot protections.
+All retrieved jobs are then filtered locally for specific undergraduate-eligible internship listings, the private location policy, and explicit role dislikes. A posting whose title clearly conflicts with a private dislike is excluded instead of merely receiving a lower score. Roles intended only for graduate, master's, MBA, PhD, doctoral, or other advanced-degree students are excluded; roles explicitly open to undergraduates remain eligible even when graduate students may also apply. Matching roles below the recommendation-score cutoff remain visible in a separate **Other Matching Internships** section, while applied roles always remain in **Applied** regardless of score. Sites requiring authentication, blocking public access, or exceeding a safety limit are recorded in `data/collection_errors.jsonl` and included in the weekly email so they can be corrected. No collector attempts to bypass authentication or anti-bot protections.
 
 ### 5. Review results
 

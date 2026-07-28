@@ -31,6 +31,17 @@ def test_matches_allowed_location_rejects_other_regions(tmp_path):
     assert not matches_allowed_location("", preferences_path=preferences)
 
 
+def test_san_jose_costa_rica_is_not_mistaken_for_bay_area(tmp_path):
+    preferences = tmp_path / "location_preferences.txt"
+    preferences.write_text("san jose\nisrael\n", encoding="utf-8")
+
+    assert matches_allowed_location("San Jose, CA", preferences_path=preferences)
+    assert not matches_allowed_location(
+        "Costa Rica, San Jose",
+        preferences_path=preferences,
+    )
+
+
 def test_matches_allowed_location_accepts_any_preferred_location_in_multi_location_role(tmp_path):
     preferences = write_preferences(tmp_path)
     assert matches_allowed_location("Preferred City | Other City", preferences_path=preferences)

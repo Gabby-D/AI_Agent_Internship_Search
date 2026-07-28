@@ -263,13 +263,20 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         collector="bank_of_america_jobs",
     ),
     "northrop grumman": SourceMetadata(
-        careers_url="https://jobs.northropgrumman.com/careers?query=intern",
+        careers_url=(
+            "https://jobs.northropgrumman.com/careers"
+            "?domain=ngc.com"
+        ),
         source_type="company_careers_search",
-        notes="Official Northrop Grumman job search filtered for internships.",
+        notes=(
+            "Page through Northrop Grumman's official Eightfold searches for "
+            "all supported internship-title variants."
+        ),
         alternate_careers_urls=(
             "https://www.northropgrumman.com/careers/"
             "students-and-entry-level-careers-start-a-career-of-purpose",
         ),
+        collector="eightfold_pcsx",
     ),
     "rtx": SourceMetadata(
         careers_url=(
@@ -370,7 +377,10 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         collector="adp_workforce_now",
     ),
     "morgan stanley": SourceMetadata(
-        careers_url="https://morganstanley.eightfold.ai/careers",
+        careers_url=(
+            "https://morganstanley.eightfold.ai/careers"
+            "?domain=morganstanley.com"
+        ),
         source_type="company_careers_search",
         notes=(
             "Page through Morgan Stanley's official Eightfold searches for all "
@@ -389,6 +399,209 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
             "API while preserving the short-lived public page session."
         ),
         collector="general_dynamics_jobs",
+    ),
+    "novi connect": SourceMetadata(
+        careers_url=(
+            "https://noviconnect.notion.site/"
+            "Careers-at-Novi-3dc7cb55c4684965a7b8d4f83cfaee5c"
+        ),
+        source_type="company_careers_search",
+        notes="Complete official Novi public Notion open-positions page.",
+        alternate_careers_urls=("https://www.noviconnect.com/careers",),
+        collector="notion_public_page",
+    ),
+    "paypal": SourceMetadata(
+        careers_url=(
+            "https://paypal.eightfold.ai/careers"
+            "?domain=paypal.com"
+        ),
+        source_type="company_careers_search",
+        notes=(
+            "Page through PayPal's official Eightfold searches for all "
+            "supported internship-title variants."
+        ),
+        alternate_careers_urls=(
+            "https://careers.pypl.com/university-hiring/University-Overview/"
+            "default.aspx",
+        ),
+        collector="eightfold_pcsx",
+    ),
+    "powerbar": SourceMetadata(
+        careers_url=(
+            "https://recruitingbypaycor.com/career/CareerHome.action"
+            "?clientId=8a7883d092732c3e01928d67c1c30437"
+        ),
+        source_type="company_careers_search",
+        notes=(
+            "Complete official Premier Nutrition Paycor board for the "
+            "PowerBar parent-company organization."
+        ),
+        alternate_careers_urls=("https://www.premiernutrition.com/careers/",),
+        collector="paycor_html",
+    ),
+    "profusa": SourceMetadata(
+        careers_url="https://profusa.com/careers-profusa/",
+        source_type="company_careers_page",
+        notes=(
+            "Official Profusa careers page; a successful page with no "
+            "internship listing is a verified zero-opening result."
+        ),
+        collector="profusa_careers",
+    ),
+    "stellarus": SourceMetadata(
+        careers_url=(
+            "https://ecge.fa.us2.oraclecloud.com/hcmUI/"
+            "CandidateExperience/en/sites/CX_6001/jobs"
+        ),
+        source_type="company_careers_search",
+        notes=(
+            "Complete Oracle Recruiting board linked by the official "
+            "Stellarus healthcare careers page."
+        ),
+        alternate_careers_urls=("https://www.stellarus.com/careers",),
+        collector="oracle_recruiting_api",
+    ),
+    "symbio": SourceMetadata(
+        careers_url="https://symb.io/careers",
+        source_type="company_status_page",
+        notes=(
+            "The former Symbio Robotics careers domain currently redirects to "
+            "a domain-parking page; fail visibly if that state changes."
+        ),
+        collector="parked_company_domain",
+    ),
+    "wiz": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/wizinc",
+        source_type="company_careers_search",
+        notes="Complete public Greenhouse board embedded by Wiz careers.",
+        alternate_careers_urls=("https://www.wiz.io/careers",),
+        collector="greenhouse_api",
+    ),
+    "zipline": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/flyzipline",
+        source_type="company_careers_search",
+        notes="Complete public Zipline Greenhouse board.",
+        alternate_careers_urls=("https://www.zipline.com/open-roles",),
+        collector="greenhouse_api",
+    ),
+    "rafael": SourceMetadata(
+        careers_url="https://career.rafael.co.il/",
+        source_type="company_careers_search",
+        notes=(
+            "Official Rafael careers portal. Access failures are recorded visibly "
+            "because the site may restrict automated clients by network."
+        ),
+    ),
+    "wix": SourceMetadata(
+        careers_url="https://careers.wix.com/positions",
+        source_type="company_careers_search",
+        notes="Official Wix open-positions search.",
+    ),
+    "cloudflare": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/cloudflare",
+        source_type="company_careers_search",
+        notes="Complete public Cloudflare Greenhouse job board.",
+        alternate_careers_urls=("https://www.cloudflare.com/careers/jobs/",),
+        collector="greenhouse_api",
+    ),
+    "elbit systems": SourceMetadata(
+        careers_url="https://elbitsystemscareer.com/jobs",
+        source_type="company_careers_search",
+        notes="Official Elbit Systems jobs search.",
+    ),
+    "dell": SourceMetadata(
+        careers_url=(
+            "https://iawmqy.fa.ocs.oraclecloud.com/hcmUI/"
+            "CandidateExperience/en/sites/careers/jobs"
+        ),
+        source_type="company_careers_search",
+        notes="Complete official Dell Oracle Recruiting jobs board.",
+        alternate_careers_urls=("https://jobs.dell.com/en/search-jobs",),
+        collector="oracle_recruiting_api",
+    ),
+    "hp": SourceMetadata(
+        careers_url="https://apply.hp.com/careers?domain=hp.com",
+        source_type="company_careers_search",
+        notes=(
+            "Page through HP's official Eightfold searches for all supported "
+            "internship-title variants."
+        ),
+        alternate_careers_urls=("https://jobs.hp.com/",),
+        collector="eightfold_pcsx",
+    ),
+    "ibm": SourceMetadata(
+        careers_url="https://careers.ibm.com/en_US/careers/SearchJobs",
+        source_type="company_careers_search",
+        notes=(
+            "Official IBM careers search. Unsupported or blocked responses are "
+            "recorded as source issues rather than treated as zero openings."
+        ),
+        alternate_careers_urls=("https://www.ibm.com/careers/internships",),
+    ),
+    "intel": SourceMetadata(
+        careers_url="https://intel.wd1.myworkdayjobs.com/External",
+        source_type="company_careers_search",
+        notes="Complete official Intel public Workday careers board.",
+        collector="workday_api",
+    ),
+    "oracle": SourceMetadata(
+        careers_url=(
+            "https://eeho.fa.us2.oraclecloud.com/hcmUI/"
+            "CandidateExperience/en/sites/jobsearch/jobs"
+        ),
+        source_type="company_careers_search",
+        notes="Complete official Oracle Recruiting jobs board.",
+        alternate_careers_urls=(
+            "https://www.oracle.com/careers/students-grads/",
+        ),
+        collector="oracle_recruiting_api",
+    ),
+    "osem": SourceMetadata(
+        careers_url="https://jobdetails.nestle.com/search/?q=&locationsearch=Israel",
+        source_type="company_careers_search",
+        notes=(
+            "Official Osem-Nestle Israel SuccessFactors search. Israeli student "
+            "roles are treated as internship-equivalent opportunities."
+        ),
+        collector="successfactors_html",
+    ),
+    "the coca-cola company": SourceMetadata(
+        careers_url="https://careers.coca-colacompany.com/",
+        source_type="company_careers_search",
+        notes=(
+            "Official Coca-Cola careers search. Unsupported API responses are "
+            "reported as source issues rather than zero openings."
+        ),
+    ),
+    "sodastream": SourceMetadata(
+        careers_url=(
+            "https://www.pepsicojobs.com/main/jobs?keywords=SodaStream"
+        ),
+        source_type="company_careers_search",
+        notes=(
+            "Complete official PepsiCo jobs API filtered to SodaStream-branded "
+            "roles, with bounded pagination."
+        ),
+        collector="jibe_jobs",
+    ),
+    "cyberark": SourceMetadata(
+        careers_url=(
+            "https://paloaltonetworks.wd5.myworkdayjobs.com/"
+            "panwexternalcareers"
+        ),
+        source_type="company_careers_search",
+        notes=(
+            "CyberArk recruiting is now handled by Palo Alto Networks; scan the "
+            "complete parent Workday board and retain CyberArk-labelled roles."
+        ),
+        alternate_careers_urls=("https://www.cyberark.com/careers/",),
+        collector="cyberark_parent_workday",
+    ),
+    "toyota": SourceMetadata(
+        careers_url="https://careers.toyota.com/us/en/search-results",
+        source_type="company_careers_search",
+        notes="Complete Toyota Motor North America public Phenom jobs search.",
+        collector="phenom_api",
     ),
 }
 

@@ -27,6 +27,13 @@ def test_research_intern_is_not_mistaken_for_search_navigation():
     )
 
 
+def test_israeli_student_title_is_treated_as_specific_internship():
+    assert is_specific_internship_listing(
+        "סטודנט/ית לשיווק",
+        "https://example.co.il/job/tel-aviv/student/123",
+    )
+
+
 def test_bain_program_page_is_excluded():
     assert not is_specific_internship_listing(
         "Internships & Programs",

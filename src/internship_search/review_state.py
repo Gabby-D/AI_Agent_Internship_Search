@@ -73,6 +73,7 @@ class ReviewablePosting:
     email_status: str
     explanations: list[str]
     gaps: list[str]
+    is_recommended: bool = True
     summary: str = ""
     highlights: list[str] = field(default_factory=list)
     notes: str = ""
@@ -180,11 +181,6 @@ def load_review_dashboard(
         ):
             continue
         scored = scored_by_url.get(filtered.posting_url)
-        if scored is not None:
-            from internship_search.fit_scoring import is_recommended_fit
-
-            if not is_recommended_fit(scored):
-                continue
         norm_company = normalize_company_name(filtered.company)
         suggested_overview = None
         if norm_company not in my_company_names and norm_company in suggested_by_company:
@@ -399,6 +395,8 @@ def build_reviewable_posting(
     notes: str,
     suggested_company_overview: SuggestedCompanyOverview | None = None,
 ) -> ReviewablePosting:
+    from internship_search.fit_scoring import is_recommended_fit
+
     return ReviewablePosting(
         title=filtered.title,
         company=filtered.company,
@@ -421,6 +419,7 @@ def build_reviewable_posting(
         ),
         explanations=scored.explanations if scored else [],
         gaps=scored.gaps if scored else (filtered.reasons if not included else []),
+        is_recommended=scored is None or is_recommended_fit(scored),
         summary=build_factual_posting_summary(filtered, notes=notes),
         highlights=build_factual_posting_highlights(filtered),
         notes=notes,

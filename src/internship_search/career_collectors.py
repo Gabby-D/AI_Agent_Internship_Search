@@ -108,6 +108,12 @@ BAYER_JOB_RE = re.compile(
     r'(?P<title>.*?)</a>',
     re.IGNORECASE | re.DOTALL,
 )
+SUCCESSFACTORS_JOB_RE = re.compile(
+    r'<a(?=[^>]+class=["\'][^"\']*\bjobTitle-link\b[^"\']*["\'])'
+    r'(?=[^>]+href=["\'](?P<url>/job/[^"\']+)["\'])[^>]*>'
+    r'(?P<title>.*?)</a>',
+    re.IGNORECASE | re.DOTALL,
+)
 BAYER_LOCATION_RE = re.compile(
     r'<td[^>]+class=["\'][^"\']*\bcolLocation\b[^"\']*["\'][^>]*>'
     r'(?P<location>.*?)</td>',
@@ -123,12 +129,17 @@ EXHAUSTIVE_API_STRATEGIES = {
     "ashby_api",
     "bank_of_america_jobs",
     "bayer_successfactors",
+    "successfactors_html",
     "breezy_html",
     "consider_board",
     "adp_workforce_now",
     "eightfold_pcsx",
     "general_dynamics_jobs",
+    "notion_public_page",
+    "parked_company_domain",
+    "profusa_careers",
     "greenhouse_api",
+    "jibe_jobs",
     "goldman_higher",
     "lemonade_jobs",
     "lever_api",
@@ -139,6 +150,7 @@ EXHAUSTIVE_API_STRATEGIES = {
     "pixar_jobs",
     "teamtailor_html",
     "workday_api",
+    "cyberark_parent_workday",
     "closed_company",
 }
 MAX_ATS_API_PAGES = 100
@@ -321,12 +333,20 @@ def run_collector_strategy(
         return collect_ycombinator_postings(source, html, collected_date)
     if strategy == "workday_api":
         return collect_workday_postings(source, collected_date)
+    if strategy == "cyberark_parent_workday":
+        return collect_cyberark_parent_workday_postings(source, collected_date)
     if strategy == "adp_workforce_now":
         return collect_adp_workforce_now_postings(source, collected_date)
     if strategy == "eightfold_pcsx":
         return collect_eightfold_postings(source, collected_date)
     if strategy == "general_dynamics_jobs":
         return collect_general_dynamics_postings(source, collected_date)
+    if strategy == "notion_public_page":
+        return collect_notion_public_page_postings(source, collected_date)
+    if strategy == "parked_company_domain":
+        return collect_parked_company_domain_postings(source, html)
+    if strategy == "profusa_careers":
+        return collect_profusa_postings(source, html, collected_date)
     if strategy == "avature_rss":
         return collect_avature_rss_postings(source, html, collected_date)
     if strategy == "oracle_recruiting_api":
@@ -343,8 +363,12 @@ def run_collector_strategy(
         return collect_bank_of_america_postings(source, collected_date)
     if strategy == "bayer_successfactors":
         return collect_bayer_postings(source, html, collected_date)
+    if strategy == "successfactors_html":
+        return collect_successfactors_postings(source, html, collected_date)
     if strategy == "greenhouse_api":
         return collect_greenhouse_postings(source, collected_date)
+    if strategy == "jibe_jobs":
+        return collect_jibe_postings(source, collected_date)
     if strategy == "lever_api":
         return collect_lever_postings(source, collected_date)
     if strategy == "ashby_api":
@@ -782,18 +806,139 @@ def collect_greenhouse_postings(
         posting_url = str(record.get("absolute_url") or "").strip()
         if not posting_url or not is_specific_internship_listing(title, posting_url):
             continue
-        location = record.get("location") if isinstance(record.get("location"), dict) else {}
+        location = greenhouse_posting_location(record)
         postings.append(
             JobPosting(
                 title=title,
                 company=source.company,
-                location=clean_title(str(location.get("name") or "Unknown")),
+                location=location,
                 posting_url=posting_url,
                 date_collected=collected_date,
                 source_url=source.careers_url,
                 eligibility_text=semantic_page_text(str(record.get("content") or "")),
             )
         )
+    return postings
+
+
+def greenhouse_posting_location(record: dict[str, Any]) -> str:
+    """Prefer a board's explicit posting locations over generic office labels."""
+
+    metadata = record.get("metadata")
+    if isinstance(metadata, list):
+        for item in metadata:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("name") or "").strip().lower() != "job posting location":
+                continue
+            value = item.get("value")
+            values = value if isinstance(value, list) else [value]
+            cleaned = [clean_title(str(part)) for part in values if str(part or "").strip()]
+            if cleaned:
+                return ", ".join(dict.fromkeys(cleaned))
+
+    offices = record.get("offices")
+    if isinstance(offices, list):
+        cleaned = [
+            clean_title(str(office.get("location") or office.get("name") or ""))
+            for office in offices
+            if isinstance(office, dict)
+        ]
+        cleaned = [value for value in cleaned if value]
+        if cleaned:
+            return ", ".join(dict.fromkeys(cleaned))
+
+    location = record.get("location") if isinstance(record.get("location"), dict) else {}
+    return clean_title(str(location.get("name") or "Unknown"))
+
+
+def collect_jibe_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    get_json: GetJson | None = None,
+) -> list[JobPosting]:
+    """Page through a Jibe jobs API and retain company-labelled internships."""
+
+    parsed = urlparse(source.careers_url)
+    query = parse_qs(parsed.query)
+    keyword = next(iter(query.get("keywords") or query.get("keyword") or [""]), "")
+    if not keyword:
+        raise ValueError("Jibe source URL must include a company keyword.")
+
+    api_url = f"{parsed.scheme}://{parsed.netloc}/api/jobs"
+    loader = get_json or get_public_json
+    page = 1
+    page_size = 100
+    seen_ids: set[str] = set()
+    postings: list[JobPosting] = []
+    exhausted = False
+
+    for _ in range(MAX_ATS_API_PAGES):
+        payload = loader(
+            f"{api_url}?{urlencode({'keywords': keyword, 'limit': page_size, 'page': page})}"
+        )
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+            raise ValueError("Jibe jobs API returned an unexpected response.")
+        records = payload["jobs"]
+        for wrapper in records:
+            record = wrapper.get("data") if isinstance(wrapper, dict) else None
+            if not isinstance(record, dict):
+                continue
+            job_id = str(record.get("req_id") or record.get("slug") or "").strip()
+            if not job_id or job_id in seen_ids:
+                continue
+            seen_ids.add(job_id)
+            title = clean_title(str(record.get("title") or ""))
+            details = semantic_page_text(
+                " ".join(
+                    str(record.get(key) or "")
+                    for key in ("description", "qualifications", "responsibilities")
+                )
+            )
+            hiring_organization = str(record.get("hiring_organization") or "")
+            if keyword.lower() not in f"{title} {hiring_organization}".lower():
+                continue
+            apply_url = str(record.get("apply_url") or "").strip()
+            posting_url = (
+                apply_url
+                if apply_url.startswith(("http://", "https://"))
+                else f"{parsed.scheme}://{parsed.netloc}/main/jobs/{quote(job_id)}"
+            )
+            if not is_specific_internship_listing(title, posting_url):
+                continue
+            location = clean_title(
+                str(
+                    record.get("full_location")
+                    or record.get("location_name")
+                    or record.get("short_location")
+                    or "Unknown"
+                )
+            )
+            postings.append(
+                JobPosting(
+                    title=title,
+                    company=source.company,
+                    location=location,
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                    eligibility_text=details,
+                )
+            )
+
+        total = int(payload.get("totalCount", 0) or 0)
+        if (
+            not records
+            or (total and page * page_size >= total)
+            or (not total and len(records) < page_size)
+        ):
+            exhausted = True
+            break
+        page += 1
+
+    if not exhausted:
+        raise RuntimeError(f"Jibe pagination exceeded {MAX_ATS_API_PAGES} API pages.")
     return postings
 
 
@@ -923,7 +1068,12 @@ def collect_eightfold_postings(
         raise ValueError("Eightfold careers host could not be determined.")
     loader = get_json or get_public_json
     api_base = f"{parsed.scheme}://{parsed.netloc}/api/pcsx"
-    domain = "morganstanley.com"
+    query = parse_qs(parsed.query)
+    domain = next(iter(query.get("domain", [])), "").strip()
+    if not domain:
+        raise ValueError(
+            "Eightfold domain could not be determined from the careers URL."
+        )
     search_terms = ("intern", "summer analyst", "summer associate", "co-op")
     records_by_id: dict[str, dict[str, Any]] = {}
     for search_term in search_terms:
@@ -1001,6 +1151,143 @@ def collect_eightfold_postings(
             )
         )
     return postings
+
+
+def collect_notion_public_page_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    post_json: PostJson | None = None,
+) -> list[JobPosting]:
+    """Read direct child role pages from a public Notion careers page."""
+
+    parsed = urlparse(source.careers_url)
+    page_id = notion_page_id(source.careers_url)
+    if not page_id:
+        raise ValueError("Notion public page ID could not be determined.")
+    poster = post_json or post_public_json
+    endpoint = f"{parsed.scheme}://{parsed.netloc}/api/v3/loadCachedPageChunkV2"
+    cursors: list[dict[str, Any]] = [{"stack": []}]
+    seen_cursors: set[str] = set()
+    blocks_by_id: dict[str, dict[str, Any]] = {}
+    exhausted = False
+    for _ in range(MAX_ATS_API_PAGES):
+        if not cursors:
+            exhausted = True
+            break
+        cursor = cursors.pop(0)
+        cursor_key = json.dumps(cursor, sort_keys=True, separators=(",", ":"))
+        if cursor_key in seen_cursors:
+            continue
+        seen_cursors.add(cursor_key)
+        payload = poster(
+            endpoint,
+            {
+                "page": {"id": page_id},
+                "cursor": cursor,
+                "verticalColumns": False,
+            },
+        )
+        record_map = payload.get("recordMap") if isinstance(payload, dict) else None
+        block_map = record_map.get("block") if isinstance(record_map, dict) else None
+        if not isinstance(block_map, dict):
+            raise ValueError("Notion public page API returned an unexpected response.")
+        for block_id, wrapper in block_map.items():
+            block = notion_block_value(wrapper)
+            if block:
+                blocks_by_id[str(block_id)] = block
+        next_cursors = payload.get("cursors")
+        if isinstance(next_cursors, list):
+            cursors.extend(
+                item for item in next_cursors if isinstance(item, dict)
+            )
+        if not cursors:
+            exhausted = True
+            break
+    if not exhausted:
+        raise RuntimeError(
+            f"Notion pagination exceeded {MAX_ATS_API_PAGES} API pages."
+        )
+
+    root_id = page_id.lower()
+    postings: list[JobPosting] = []
+    for block in blocks_by_id.values():
+        if (
+            block.get("type") != "page"
+            or block.get("alive") is False
+            or str(block.get("parent_id") or "").lower() != root_id
+        ):
+            continue
+        title = clean_title(notion_block_title(block))
+        block_id = str(block.get("id") or "").strip()
+        if not title or not block_id:
+            continue
+        slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+        posting_url = (
+            f"{parsed.scheme}://{parsed.netloc}/{slug}-{block_id.replace('-', '')}"
+        )
+        if not is_specific_internship_listing(title, posting_url):
+            continue
+        postings.append(
+            JobPosting(
+                title=title,
+                company=source.company,
+                location="Unknown",
+                posting_url=posting_url,
+                date_collected=collected_date,
+                source_url=source.careers_url,
+            )
+        )
+    return postings
+
+
+def notion_page_id(url: str) -> str:
+    matches = re.findall(r"(?i)([0-9a-f]{32})(?:[/?#]|$)", url)
+    if not matches:
+        return ""
+    compact = matches[-1].lower()
+    return (
+        f"{compact[:8]}-{compact[8:12]}-{compact[12:16]}-"
+        f"{compact[16:20]}-{compact[20:]}"
+    )
+
+
+def notion_block_value(wrapper: Any) -> dict[str, Any]:
+    if not isinstance(wrapper, dict):
+        return {}
+    value = wrapper.get("value")
+    if isinstance(value, dict) and isinstance(value.get("value"), dict):
+        return value["value"]
+    return value if isinstance(value, dict) else {}
+
+
+def notion_block_title(block: dict[str, Any]) -> str:
+    properties = block.get("properties")
+    title_parts = properties.get("title") if isinstance(properties, dict) else None
+    if not isinstance(title_parts, list):
+        return ""
+    return "".join(
+        str(part[0])
+        for part in title_parts
+        if isinstance(part, list) and part and isinstance(part[0], str)
+    )
+
+
+def collect_profusa_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+) -> list[JobPosting]:
+    """Treat Profusa's current official careers page as a complete source."""
+
+    page_text = semantic_page_text(html).lower()
+    if "profusa" not in page_text or "careers" not in page_text:
+        raise ValueError("The official Profusa careers-page content was not found.")
+    return extract_postings_from_html(
+        source=source,
+        html=html,
+        collected_date=collected_date,
+    )
 
 
 def collect_general_dynamics_postings(
@@ -1342,6 +1629,26 @@ def collect_workday_postings(
     return postings
 
 
+def collect_cyberark_parent_workday_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    post_json: PostJson | None = None,
+) -> list[JobPosting]:
+    """Retain only CyberArk-labelled roles from its parent Workday board."""
+
+    postings = collect_workday_postings(
+        source,
+        collected_date,
+        post_json=post_json,
+    )
+    return [
+        posting
+        for posting in postings
+        if "cyberark" in f"{posting.title} {posting.eligibility_text}".lower()
+    ]
+
+
 def collect_closed_company_postings(
     source: CompanySource,
     html: str,
@@ -1351,6 +1658,21 @@ def collect_closed_company_postings(
     page_text = semantic_page_text(html).lower()
     if "company is no longer operating" not in page_text:
         raise ValueError("The official company closure notice was not found.")
+    return []
+
+
+def collect_parked_company_domain_postings(
+    source: CompanySource,
+    html: str,
+) -> list[JobPosting]:
+    """Treat a verified domain-parking redirect as a complete empty source."""
+
+    compact_html = re.sub(r"\s+", "", html).lower()
+    if (
+        'window.location.href="/lander"' not in compact_html
+        and "window.location.href='/lander'" not in compact_html
+    ):
+        raise ValueError("The expected parked-domain redirect was not found.")
     return []
 
 
@@ -1973,7 +2295,7 @@ def collect_bayer_postings(
         new_rows = 0
         for row_match in rows:
             row = row_match.group("row")
-            job_match = BAYER_JOB_RE.search(row)
+            job_match = SUCCESSFACTORS_JOB_RE.search(row)
             if not job_match:
                 continue
             posting_url = urljoin(source.careers_url, html_module.unescape(job_match.group("url")))
@@ -2009,6 +2331,86 @@ def collect_bayer_postings(
     if not exhausted:
         raise RuntimeError(
             f"Bayer pagination exceeded {MAX_ATS_API_PAGES} result pages."
+        )
+    return postings
+
+
+def collect_successfactors_postings(
+    source: CompanySource,
+    html: str,
+    collected_date: str,
+    *,
+    fetch_page: FetchPage | None = None,
+) -> list[JobPosting]:
+    """Read every result page from a standard SuccessFactors jobs search."""
+
+    fetcher = fetch_page or fetch_public_page
+    parsed = urlparse(source.careers_url)
+    base_query = parse_qs(parsed.query)
+    offset = 0
+    page_html = html
+    postings: list[JobPosting] = []
+    seen_urls: set[str] = set()
+    exhausted = False
+
+    for _ in range(MAX_ATS_API_PAGES):
+        if offset:
+            query = {key: values for key, values in base_query.items()}
+            query["startrow"] = [str(offset)]
+            page_url = parsed._replace(query=urlencode(query, doseq=True)).geturl()
+            page_html = fetcher(page_url)
+
+        total_match = BAYER_TOTAL_RE.search(page_html)
+        if not total_match:
+            raise ValueError("SuccessFactors jobs page did not expose a result total.")
+        total = int(total_match.group("total").replace(",", ""))
+        rows = list(BAYER_RESULT_ROW_RE.finditer(page_html))
+        if not rows:
+            exhausted = offset >= total
+            break
+
+        new_rows = 0
+        for row_match in rows:
+            row = row_match.group("row")
+            job_match = SUCCESSFACTORS_JOB_RE.search(row)
+            if not job_match:
+                continue
+            posting_url = urljoin(
+                source.careers_url,
+                html_module.unescape(job_match.group("url")),
+            )
+            if posting_url in seen_urls:
+                continue
+            seen_urls.add(posting_url)
+            new_rows += 1
+            title = clean_title(semantic_page_text(job_match.group("title")))
+            if not mentions_internship(title, posting_url):
+                continue
+            location_match = BAYER_LOCATION_RE.search(row)
+            location = (
+                clean_title(semantic_page_text(location_match.group("location")))
+                if location_match
+                else "Unknown"
+            )
+            postings.append(
+                JobPosting(
+                    title=title,
+                    company=source.company,
+                    location=location or "Unknown",
+                    posting_url=posting_url,
+                    date_collected=collected_date,
+                    source_url=source.careers_url,
+                )
+            )
+
+        offset += len(rows)
+        if not new_rows or offset >= total:
+            exhausted = True
+            break
+
+    if not exhausted:
+        raise RuntimeError(
+            f"SuccessFactors pagination exceeded {MAX_ATS_API_PAGES} result pages."
         )
     return postings
 

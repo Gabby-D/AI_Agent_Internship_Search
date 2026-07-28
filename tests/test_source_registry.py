@@ -195,6 +195,36 @@ def test_additional_recovered_sources_use_complete_official_collectors():
             "morganstanley.eightfold.ai/careers",
             "eightfold_pcsx",
         ),
+        "Northrop Grumman": (
+            "jobs.northropgrumman.com/careers?domain=ngc.com",
+            "eightfold_pcsx",
+        ),
+        "Novi Connect": (
+            "noviconnect.notion.site/Careers-at-Novi",
+            "notion_public_page",
+        ),
+        "PayPal": (
+            "paypal.eightfold.ai/careers?domain=paypal.com",
+            "eightfold_pcsx",
+        ),
+        "PowerBar": (
+            "recruitingbypaycor.com/career/CareerHome.action",
+            "paycor_html",
+        ),
+        "Profusa": (
+            "profusa.com/careers-profusa",
+            "profusa_careers",
+        ),
+        "Stellarus": (
+            "ecge.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_6001",
+            "oracle_recruiting_api",
+        ),
+        "Symbio": ("symb.io/careers", "parked_company_domain"),
+        "Wiz": ("job-boards.greenhouse.io/wizinc", "greenhouse_api"),
+        "Zipline": (
+            "job-boards.greenhouse.io/flyzipline",
+            "greenhouse_api",
+        ),
     }
 
     for company_name, (url_part, collector) in expected.items():
@@ -208,6 +238,27 @@ def test_additional_recovered_sources_use_complete_official_collectors():
         Company(name="Clif Bar and Company", website="", has_connection=False)
     )
     assert clif.alternate_careers_urls == ()
+
+
+def test_new_requested_companies_use_reviewed_official_sources():
+    expected = {
+        "Cloudflare": ("job-boards.greenhouse.io/cloudflare", "greenhouse_api"),
+        "Dell": ("oraclecloud.com/hcmUI/CandidateExperience", "oracle_recruiting_api"),
+        "HP": ("apply.hp.com/careers", "eightfold_pcsx"),
+        "Intel": ("intel.wd1.myworkdayjobs.com/External", "workday_api"),
+        "Oracle": ("eeho.fa.us2.oraclecloud.com", "oracle_recruiting_api"),
+        "Osem": ("jobdetails.nestle.com/search", "successfactors_html"),
+        "SodaStream": ("pepsicojobs.com/main/jobs", "jibe_jobs"),
+        "CyberArk": ("paloaltonetworks.wd5.myworkdayjobs.com", "cyberark_parent_workday"),
+        "Toyota": ("careers.toyota.com/us/en/search-results", "phenom_api"),
+    }
+
+    for company_name, (url_part, collector) in expected.items():
+        source = build_company_source(
+            Company(name=company_name, website="", has_connection=False)
+        )
+        assert url_part in source.careers_url
+        assert source.collector == collector
 
 
 def test_build_company_source_falls_back_to_website_for_unknown_company():
