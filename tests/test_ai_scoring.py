@@ -163,7 +163,8 @@ def test_gemini_scorer_falls_back_on_api_error():
     )
 
     assert parsed.provider == "local_rule_based"
-    assert any("AI scoring unavailable" in item for item in parsed.explanations)
+    assert any("AI scoring was temporarily unavailable" in item for item in parsed.explanations)
+    assert all("provider unavailable" not in item for item in parsed.explanations)
 
 
 def test_get_fit_scorer_defaults_to_local_without_api_key(monkeypatch):

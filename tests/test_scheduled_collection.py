@@ -267,6 +267,13 @@ def test_is_scheduled_run_operationally_successful_for_partial_source_warnings(t
     )
 
     assert is_scheduled_run_operationally_successful(result) is True
+    assert (
+        is_scheduled_run_operationally_successful(
+            result,
+            require_email_sent=True,
+        )
+        is False
+    )
 
 
 def test_is_scheduled_run_operationally_successful_false_when_score_fails(tmp_path):

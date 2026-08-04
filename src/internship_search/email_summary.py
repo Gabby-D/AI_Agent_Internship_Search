@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from internship_search.email_delivery import EmailDeliveryResult, deliver_email,
 from internship_search.env_loader import get_env, load_env_into_process
 from internship_search.fit_scoring import ScoredPosting
 from internship_search.job_collector import CollectionError, read_postings_jsonl
+from internship_search.location_filter import summarize_allowed_locations
 from internship_search.monitored_companies import read_collection_errors_jsonl
 from internship_search.source_registry import CompanySource, read_source_registry
 
@@ -268,13 +270,14 @@ def render_delivery_email_body(
                 lines.append(f"  {fit_level.title()} fit:")
                 for posting in postings:
                     new_label = "new in latest run" if posting.posting_url in new_posting_urls else "unsent"
-                    explanation = " ".join(posting.explanations) or "No explanation available."
+                    explanation = summarize_email_explanation(posting.explanations)
+                    location = summarize_allowed_locations(posting.location)
                     lines.extend(
                         [
                             f"  - {posting.title} ({new_label}, score {posting.score})",
-                            f"    Location: {posting.location}",
-                            f"    Link: {posting.posting_url}",
-                            f"    Fit explanation: {explanation}",
+                            f"    Location: {location}",
+                            f"    Why it may fit: {explanation}",
+                            f"    Apply: {posting.posting_url}",
                         ]
                     )
             lines.append("")
@@ -335,17 +338,83 @@ def render_email_posting(
     new_posting_urls: set[str],
 ) -> list[str]:
     new_label = "new in latest run" if posting.posting_url in new_posting_urls else "unsent"
-    explanation = " ".join(posting.explanations) or "No explanation available."
-    gaps = " ".join(posting.gaps) or "No major gaps listed."
+    explanation = summarize_email_explanation(posting.explanations)
+    gaps = summarize_email_text(posting.gaps, fallback="No major gaps listed.")
+    location = summarize_allowed_locations(posting.location)
     return [
         f"- **{posting.title}** ({new_label}, score {posting.score})",
-        f"  - Location: {posting.location}",
+        f"  - Location: {location}",
         "  - Deadline: Not available",
         f"  - Link: {posting.posting_url}",
-        f"  - Fit explanation: {explanation}",
+        f"  - Why it may fit: {explanation}",
         f"  - Gaps to review: {gaps}",
         "",
     ]
+
+
+def summarize_email_explanation(explanations: list[str]) -> str:
+    """Return a short human explanation without provider errors or payloads."""
+
+    readable = [
+        explanation
+        for explanation in explanations
+        if not _looks_like_internal_diagnostic(explanation)
+    ]
+    return summarize_email_text(
+        readable,
+        fallback="Matched the internship and location requirements; review the posting for details.",
+    )
+
+
+def summarize_email_text(
+    values: list[str],
+    *,
+    fallback: str,
+    max_chars: int = 280,
+) -> str:
+    """Collapse scoring prose into at most two readable sentences."""
+
+    cleaned = " ".join(
+        re.sub(r"\s+", " ", value).strip()
+        for value in values
+        if value and value.strip()
+    ).strip()
+    if not cleaned:
+        return fallback
+
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", cleaned)
+        if sentence.strip()
+    ]
+    concise = ""
+    for sentence in sentences[:2]:
+        candidate = f"{concise} {sentence}".strip()
+        if len(candidate) > max_chars:
+            break
+        concise = candidate
+    if concise:
+        return concise
+
+    shortened = cleaned[: max_chars - 3].rsplit(" ", 1)[0].rstrip(" ,;:")
+    return f"{shortened}..." if shortened else fallback
+
+
+def _looks_like_internal_diagnostic(value: str) -> bool:
+    normalized = value.lower()
+    return any(
+        marker in normalized
+        for marker in (
+            "ai scoring unavailable",
+            "ai scoring was temporarily unavailable",
+            "googleapis.com",
+            "google.rpc",
+            "quotaexceeded",
+            "quota exceeded",
+            "resource_exhausted",
+            "retryinfo",
+        )
+    )
 
 
 def render_next_actions(

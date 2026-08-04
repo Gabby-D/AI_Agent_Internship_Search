@@ -354,9 +354,16 @@ def determine_run_status(steps: list[WorkflowStepResult]) -> str:
     return "success"
 
 
-def is_scheduled_run_operationally_successful(result: ScheduledCollectionResult) -> bool:
+def is_scheduled_run_operationally_successful(
+    result: ScheduledCollectionResult,
+    *,
+    require_email_sent: bool = False,
+) -> bool:
     """Return True when required downstream steps completed despite source warnings."""
     if result.status == "failed":
+        return False
+
+    if require_email_sent and not result.email_sent:
         return False
 
     step_statuses = {step.name: step.status for step in result.steps}

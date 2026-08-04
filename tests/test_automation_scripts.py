@@ -45,3 +45,6 @@ def test_scheduled_tasks_wake_retry_serialize_and_refresh_before_email():
     assert '"run-scheduled-collection"' in weekly
     assert '"--send-email"' in weekly
     assert '"--include-job-boards"' in weekly
+    assert "last_successful_week" in weekly
+    assert "-Daily -At $WeeklyEmailAt" in registration
+    assert '"-NoProfile -WindowStyle Hidden "' in registration

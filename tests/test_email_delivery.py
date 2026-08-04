@@ -115,6 +115,33 @@ def test_render_delivery_email_body_includes_posting_links():
     assert "https://example.com/jobs/1" in body
 
 
+def test_render_delivery_email_body_hides_provider_payloads_and_shortens_prose():
+    posting = make_scored_posting()
+    posting = ScoredPosting(
+        **{
+            **posting.__dict__,
+            "explanations": [
+                'AI scoring unavailable (HTTP 429: {"@type": "google.rpc.RetryInfo"})',
+                "Role appears internship-related.",
+                "Matches the requested undergraduate timing.",
+                "This third sentence should not be included.",
+            ],
+        }
+    )
+
+    body = render_delivery_email_body(
+        selected_postings=[posting],
+        new_posting_urls={posting.posting_url},
+        sources=[make_source()],
+    )
+
+    assert "google.rpc" not in body
+    assert "HTTP 429" not in body
+    assert "Why it may fit: Role appears internship-related. Matches the requested undergraduate timing." in body
+    assert "This third sentence" not in body
+    assert "Apply: https://example.com/jobs/1" in body
+
+
 def test_render_delivery_email_body_includes_company_access_problems():
     body = render_delivery_email_body(
         selected_postings=[],

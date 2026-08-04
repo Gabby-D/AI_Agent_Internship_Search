@@ -116,6 +116,9 @@ uv run internship-search review-ui
 
 Then open **http://127.0.0.1:8765**. The command auto-opens your browser. **Keep that terminal open** — closing it stops the site.
 
+That terminal requirement applies only to the CLI command above. For normal
+use, install the one-click app and automatic Windows logon task below.
+
 ### One-click Windows app
 
 Build the local windowed app once:
@@ -128,6 +131,31 @@ powershell -ExecutionPolicy Bypass -File config/build_windows_app.ps1 -Clean
 Then double-click `app/Internship Search.exe`. It starts the local dashboard and opens the browser without showing a terminal. The executable contains program code only; it continues reading personal inputs and generated results from the ignored `private/` and `data/` folders beside the project. Keep the executable in the project's `app/` folder so it can locate those folders.
 
 If the dashboard is already running and healthy, opening the app simply reopens it in the browser. Startup errors are written locally to `data/app_launcher.log`.
+
+### Keep the dashboard available after Windows restarts
+
+Register the Windows automation tasks once:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File config/register_scheduled_tasks.ps1
+```
+
+This includes **AI Agent Internship Dashboard**, which starts the local app
+silently whenever you log in to Windows. It does not require Codex or an open
+terminal, does not open a browser automatically, prevents duplicate server
+processes, supervises the app, and restarts it after a failure. Task Scheduler
+also has a restart policy as a second layer. Open
+**http://127.0.0.1:8765** whenever you want to use it.
+
+The dashboard is private to this laptop and listens only on `127.0.0.1`. It is
+available while the laptop is powered on and you are logged in; it cannot run
+while the computer is shut down.
+
+Verify the dashboard, search, discovery, and email tasks with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File config/verify_automation.ps1
+```
 
 ## Core Workflow
 
@@ -295,9 +323,14 @@ The summary uses `data/email_sent_history.json` to avoid repeating internships a
 
 The email also includes a **Company Job-Site Access Problems** section from the latest collection. Each problem lists the company, careers URL, and error message so the source can be checked or corrected in the Companies tab. When problems exist, their count is also shown in the email subject.
 
+Email recommendations use short, human-readable “Why it may fit” summaries.
+Provider errors, quota responses, JSON payloads, and other internal diagnostics
+are never included in the email body. Multi-location roles show only matching
+location entries followed by `...` when other offices are available.
+
 ## Scheduled Automation
 
-Register weekly company discovery, daily collection, and Monday weekly-email tasks:
+Register the dashboard, weekly company discovery, daily collection, and weekly-email recovery tasks:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File config/register_scheduled_tasks.ps1
@@ -307,7 +340,8 @@ This registers:
 
 - **Recommended-company discovery** on Monday at 8:30 AM
 - **Daily collection** at 9:00 AM with `--include-job-boards`
-- **Weekly fresh collection and email send** on Monday at 10:00 AM
+- **Weekly fresh collection and email send** targeted for Monday at 10:00 AM,
+  with a daily 10:00 AM recovery check
 
 The tasks request that Windows wake the laptop when supported. If a run is
 still missed, it starts when the computer next becomes available. Failed runs
@@ -316,7 +350,12 @@ prevents discovery, collection, and email jobs from changing the same files
 simultaneously when several missed tasks start after one wake-up.
 
 The weekly email wrapper performs a fresh collection before sending, so it
-does not depend on the separate daily collection finishing first.
+does not depend on the separate daily collection finishing first. Its ignored
+local state file records the Monday-based week only after SMTP delivery
+succeeds. The daily recovery trigger therefore retries an interrupted or
+missed Monday run on the next available day without sending duplicate weekly
+summaries. An SMTP failure returns a non-zero task result and remains eligible
+for retry.
 
 Wrapper scripts:
 
@@ -343,7 +382,7 @@ After setup, confirm automation is working:
 
 1. **Email credentials** — `.env` has `EMAIL_FROM`, `EMAIL_TO`, and `EMAIL_SMTP_PASSWORD` set.
 2. **Live email test** — `uv run internship-search weekly-email-summary --send` reports `Email sent to ...` and updates `data/email_sent_history.json` only after a successful send.
-3. **Scheduled tasks** — Task Scheduler shows all three tasks as **Ready** with recent last-run times after the computer is on.
+3. **Scheduled tasks** — Task Scheduler shows the three periodic tasks as **Ready** and the dashboard as **Running** or **Ready**, with recent last-run times after the computer is on.
 4. **Collection logs** — `data/scheduled_collection_runs.jsonl` gains a new line after each collection run. `status: partial` is normal when some company pages fail but scoring and the email draft still complete.
 5. **Wrapper logs** — `data/scheduled_run_output/` contains timestamped `.log` files from the PowerShell wrappers.
 6. **Job board search (optional)** — `uv run internship-search search-job-boards` reports `Provider: duckduckgo_job_board` and writes `data/job_board_postings.jsonl`.
@@ -353,7 +392,7 @@ After setup, confirm automation is working:
 
 | Symptom | What to check |
 |---------|----------------|
-| Weekly email not received | Check Task Scheduler's last result and the newest `weekly_email_*.log`. Re-register tasks to restore wake/catch-up/retry settings, then run `weekly-email-summary --send` manually if an immediate resend is needed. Gmail app passwords need `EMAIL_SMTP_HOST=smtp.gmail.com` and port `587` (defaults apply when unset). |
+| Weekly email not received | Check Task Scheduler's last result and the newest `weekly_email_*.log`. Re-register tasks to restore wake/catch-up/daily-recovery settings. The next daily 10:00 AM check retries a week that has no successful-send marker; use `config/run_weekly_email.ps1 -Force` only when an immediate resend is needed. Gmail app passwords need `EMAIL_SMTP_HOST=smtp.gmail.com` and port `587` (defaults apply when unset). |
 | Task Scheduler shows non-zero last result | Open the newest file in `data/scheduled_run_output/`. Collection runs with source warnings may still finish with `Status: partial` and exit code `0` when scoring and email steps succeed. |
 | `email_sent_history.json` unchanged after send | Send did not succeed. Fix SMTP credentials and retry; history updates only after delivery succeeds. |
 | No new postings in email | All current postings may already appear in `email_sent_history.json`. Run a fresh `run-scheduled-collection` first. |

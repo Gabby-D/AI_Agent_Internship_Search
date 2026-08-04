@@ -380,6 +380,18 @@ an applied lower-scoring role remains in **Applied**, and dismissed or archived
 roles remain in their respective sections. Hard location, undergraduate, and
 explicit-dislike exclusions still apply before any role reaches the dashboard.
 
+### Dashboard Logon Startup Follow-up (2026-07-30)
+
+The local dashboard now has a dedicated Windows logon task, separate from the
+daily search and weekly email tasks. `config/run_dashboard.ps1` starts the
+windowless executable without opening a browser, remains attached to the
+process, restarts it after ten seconds when it exits, and monitors an already
+healthy instance instead of starting a duplicate. The registration script also
+configures unlimited execution time, `IgnoreNew` multiple-instance behavior,
+battery operation, and three one-minute Task Scheduler restart attempts as a
+fallback. Automation verification now reports both the task state and the
+local HTTP health check.
+
 ## Handoff Update (2026-07-27)
 
 The next source-recovery batch is implemented locally but has not been pushed
@@ -516,6 +528,38 @@ this repair.
 - A current weekly email was sent successfully after the repair. Its local
   summary reported 13 new internships and 23 job-site problems; sent history
   was updated only after SMTP success.
+
+### Scheduler Interruption Follow-up (2026-08-03)
+
+- The laptop slept through the Monday 10:00 AM target and resumed at 11:43 AM.
+  Windows started catch-up automation, then terminated all four internship
+  tasks with `0xC000013A` before the weekly wrapper reached SMTP delivery.
+- The weekly task now has a daily 10:00 AM recovery trigger. The wrapper sends
+  at most once per Monday-based week and records success in the ignored local
+  `data/weekly_email_task_state.json` file only after the send command exits
+  successfully.
+- If Monday is missed or interrupted, the next available daily trigger retries
+  automatically. A successful week is skipped on later days, preventing normal
+  duplicate summaries.
+- A requested SMTP send that does not produce `email_sent=True` now returns a
+  non-zero command result, allowing Task Scheduler retries instead of falsely
+  recording success.
+- All automation PowerShell actions are hidden and use `-NoProfile`, so these
+  recovery checks do not open terminal windows or depend on profile scripts.
+
+### Weekly Email Readability Repair (2026-08-03)
+
+- Gemini quota failures previously placed the full HTTP 429 response payload
+  inside a fallback score explanation, which exposed JSON and retry metadata in
+  the plain-text weekly email.
+- Fallback scoring now stores only a short human status message; provider error
+  details are not treated as recommendation rationale.
+- Email rendering independently filters legacy provider diagnostics, collapses
+  whitespace, and limits each fit explanation to two sentences and 280
+  characters. This protects emails generated from older scored records too.
+- Recommendation labels now read `Why it may fit` and `Apply`, and multi-office
+  postings use the existing allowed-location summary instead of listing every
+  office.
 
 ### Northrop Grumman, Novi, PayPal, PowerBar, and Profusa (2026-07-27)
 

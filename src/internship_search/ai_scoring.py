@@ -129,7 +129,7 @@ class GeminiFitScorer:
                 has_connection=has_connection,
             )
             explanations = [
-                f"AI scoring unavailable ({error}); used local fallback.",
+                "AI scoring was temporarily unavailable; used local matching instead.",
                 *fallback.explanations,
             ]
             return ParsedFitScore(

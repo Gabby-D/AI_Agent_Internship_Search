@@ -30,6 +30,7 @@ for key in keys:
 Write-Host ""
 Write-Host "=== Scheduled tasks ==="
 $TaskNames = @(
+    "AI Agent Internship Dashboard",
     "AI Agent Internship Company Discovery",
     "AI Agent Internship Search",
     "AI Agent Internship Weekly Email"
@@ -42,6 +43,18 @@ foreach ($TaskName in $TaskNames) {
     }
     $Info = Get-ScheduledTaskInfo -TaskName $TaskName
     Write-Host "$TaskName : $($Task.State) | Last run: $($Info.LastRunTime) | Last result: $($Info.LastTaskResult)"
+}
+
+Write-Host ""
+Write-Host "=== Local dashboard ==="
+try {
+    $DashboardResponse = Invoke-WebRequest `
+        -Uri "http://127.0.0.1:8765/api/dashboard" `
+        -UseBasicParsing `
+        -TimeoutSec 5
+    Write-Host "Dashboard : HEALTHY | http://127.0.0.1:8765 | HTTP $($DashboardResponse.StatusCode)"
+} catch {
+    Write-Host "Dashboard : NOT RUNNING | http://127.0.0.1:8765"
 }
 
 Write-Host ""

@@ -733,7 +733,14 @@ def main(argv: list[str] | None = None) -> int:
             target_year=args.target_year,
         )
         print(summarize_scheduled_collection(result))
-        return 0 if is_scheduled_run_operationally_successful(result) else 1
+        return (
+            0
+            if is_scheduled_run_operationally_successful(
+                result,
+                require_email_sent=args.send_email,
+            )
+            else 1
+        )
 
     if args.command == "discover-companies":
         from internship_search.company_discovery import (
