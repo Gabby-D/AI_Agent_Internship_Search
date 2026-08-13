@@ -31,6 +31,16 @@ def test_matches_allowed_location_rejects_other_regions(tmp_path):
     assert not matches_allowed_location("", preferences_path=preferences)
 
 
+def test_israel_region_labels_match_when_israel_is_preferred(tmp_path):
+    preferences = tmp_path / "location_preferences.txt"
+    preferences.write_text("israel\nbay area\n", encoding="utf-8")
+
+    assert matches_allowed_location("North, Israel", preferences_path=preferences)
+    assert matches_allowed_location("Sharon, Israel", preferences_path=preferences)
+    assert matches_allowed_location("Jerusalem Area, Israel", preferences_path=preferences)
+    assert not matches_allowed_location("North Carolina, United States", preferences_path=preferences)
+
+
 def test_san_jose_costa_rica_is_not_mistaken_for_bay_area(tmp_path):
     preferences = tmp_path / "location_preferences.txt"
     preferences.write_text("san jose\nisrael\n", encoding="utf-8")

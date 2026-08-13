@@ -19,6 +19,9 @@ from internship_search.career_collectors import (
     collect_jibe_postings,
     collect_lemonade_postings,
     collect_eightfold_postings,
+    collect_elbit_postings,
+    collect_ibm_careers_postings,
+    collect_wix_postings,
     collect_pwc_postings,
     collect_semantic_detail_posting,
     collect_postings_for_source,
@@ -666,6 +669,40 @@ def test_collect_workday_postings_pages_until_total_is_reached():
         "Summer Intern One",
         "Summer Intern Two",
     ]
+
+
+def test_collect_workday_postings_uses_bullet_fields_when_location_text_is_missing():
+    source = make_source(
+        company="Levi's",
+        careers_url="https://levistraussandco.wd5.myworkdayjobs.com/en-US/External",
+        collector="workday_api",
+    )
+
+    def post_json(_url: str, _payload: dict) -> dict:
+        return {
+            "total": 1,
+            "jobPostings": [
+                {
+                    "title": "F.I.T. Intern UX Research",
+                    "externalPath": "/job/San-Francisco/FIT-Intern_R-0144961",
+                    "bulletFields": [
+                        "R-0144961",
+                        "Spotlight Job",
+                        "USA, San Francisco, HQ",
+                        "San Francisco, CA, USA",
+                    ],
+                }
+            ],
+        }
+
+    postings = collect_workday_postings(
+        source,
+        "2026-08-13",
+        post_json=post_json,
+    )
+
+    assert len(postings) == 1
+    assert postings[0].location == "San Francisco, CA, USA"
 
 
 def test_collect_workday_postings_supports_parent_company_recruiting_search():
@@ -1585,3 +1622,154 @@ def test_collect_successfactors_pages_and_recognizes_hebrew_student_role():
 
     assert [posting.title for posting in postings] == ["סטודנט/ית לשיווק"]
     assert postings[0].location == "Tel Aviv, IL"
+
+
+def test_collect_ibm_careers_pages_internship_facet_until_short_page():
+    source = make_source(
+        company="IBM",
+        careers_url="https://www.ibm.com/careers/search",
+        collector="ibm_careers",
+    )
+    calls: list[tuple[int, str]] = []
+
+    def post_json(url: str, payload: dict) -> dict:
+        facet = payload["post_filter"]["bool"]["must"][0]["term"]["field_keyword_18"]
+        offset = payload["from"]
+        calls.append((offset, facet))
+        if facet != "Internship":
+            return {"hits": {"hits": []}}
+        return {
+            "hits": {
+                "hits": [
+                    {
+                        "_source": {
+                            "title": "Software Engineering Intern",
+                            "url": "https://careers.ibm.com/en_US/careers/JobDetail/Software-Engineering-Intern/1001",
+                            "field_keyword_05": "United States",
+                            "field_keyword_08": "Internship",
+                            "field_keyword_17": "Hybrid",
+                            "field_keyword_19": "San Francisco, CA",
+                            "description": "<p>Open to undergraduate students.</p>",
+                        }
+                    },
+                    {
+                        "_source": {
+                            "title": "Senior Software Engineer",
+                            "url": "https://careers.ibm.com/en_US/careers/JobDetail/Senior-Software-Engineer/1002",
+                            "field_keyword_08": "Internship",
+                        }
+                    },
+                    {
+                        "_source": {
+                            "title": "Hardware Intern",
+                            "url": "https://careers.ibm.com/en_US/careers/JobDetail/Hardware-Intern/1003",
+                            "field_keyword_19": "Austin, TX",
+                        }
+                    },
+                ]
+            }
+        }
+
+    postings = collect_ibm_careers_postings(
+        source,
+        "2026-08-13",
+        post_json=post_json,
+    )
+
+    assert calls == [(0, "Internship"), (0, "Intern")]
+    assert [posting.title for posting in postings] == [
+        "Software Engineering Intern",
+        "Hardware Intern",
+    ]
+    assert postings[0].location == "San Francisco, CA; United States; Hybrid"
+    assert "undergraduate students" in postings[0].eligibility_text.lower()
+
+
+def test_collect_elbit_reads_student_category_from_official_jobs_json():
+    source = make_source(
+        company="Elbit Systems",
+        careers_url="https://elbitsystemscareer.com/jobs",
+        collector="elbit_jobs",
+    )
+    requested: list[str] = []
+
+    def get_json(url: str):
+        requested.append(url)
+        if url.endswith("/cron/jobs.json"):
+            return {
+                "jobs": [
+                    {
+                        "jobId": "123",
+                        "jobTitle": "מפתח תוכנה",
+                        "categoryId": 6,
+                        "area": "Haifa",
+                        "description": "סטודנט לפיתוח תוכנה",
+                    },
+                    {
+                        "jobId": "124",
+                        "jobTitle": "Production Manager",
+                        "categoryId": 3,
+                        "area": "Karmiel",
+                    },
+                ]
+            }
+        raise RuntimeError("not found")
+
+    postings = collect_elbit_postings(
+        source,
+        "2026-08-13",
+        get_json=get_json,
+    )
+
+    assert requested == ["https://elbitsystemscareer.com/cron/jobs.json"]
+    assert [posting.title for posting in postings] == ["מפתח תוכנה"]
+    assert postings[0].posting_url == "https://elbitsystemscareer.com/jobs?id=123"
+    assert postings[0].location == "Haifa, Israel"
+
+
+def test_collect_wix_reads_student_roles_from_official_position_sitemap():
+    source = make_source(
+        company="Wix",
+        careers_url="https://careers.wix.com/positions",
+        collector="wix_positions",
+    )
+    requested: list[str] = []
+    pages = {
+        "https://careers.wix.com/sitemap.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://careers.wix.com/positions</loc></url>
+  <url><loc>https://careers.wix.com/position/student-software-engineer-1</loc></url>
+  <url><loc>https://careers.wix.com/position/missing-role</loc></url>
+  <url><loc>https://careers.wix.com/position/server-engineer-2</loc></url>
+</urlset>
+""",
+        "https://careers.wix.com/position/student-software-engineer-1": (
+            '<meta property="og:title" content="Student Software Engineer | Wix Careers">'
+        ),
+        "https://careers.wix.com/position/server-engineer-2": (
+            '<meta property="og:title" content="Server Engineer | Wix Careers">'
+        ),
+    }
+
+    def fetch_page(url: str) -> str:
+        requested.append(url)
+        if url.endswith("missing-role"):
+            raise RuntimeError("404")
+        return pages[url]
+
+    postings = collect_wix_postings(
+        source,
+        "2026-08-13",
+        fetch_page=fetch_page,
+    )
+
+    assert requested == [
+        "https://careers.wix.com/sitemap.xml",
+        "https://careers.wix.com/position/student-software-engineer-1",
+        "https://careers.wix.com/position/missing-role",
+        "https://careers.wix.com/position/server-engineer-2",
+    ]
+    assert [posting.title for posting in postings] == ["Student Software Engineer"]
+    assert postings[0].posting_url == (
+        "https://careers.wix.com/position/student-software-engineer-1"
+    )

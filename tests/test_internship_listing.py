@@ -34,6 +34,27 @@ def test_israeli_student_title_is_treated_as_specific_internship():
     )
 
 
+def test_english_student_job_title_is_treated_as_specific_internship():
+    assert is_specific_internship_listing(
+        "Student Software Engineer",
+        "https://careers.wix.com/position/seat-example-744000017110845",
+    )
+
+
+def test_elbit_student_job_query_url_is_a_specific_listing():
+    assert is_specific_internship_listing(
+        "HR Student",
+        "https://elbitsystemscareer.com/jobs?id=20775",
+    )
+
+
+def test_students_and_graduates_nav_title_is_not_a_specific_listing():
+    assert not is_specific_internship_listing(
+        "Students and graduates",
+        "https://example.com/students",
+    )
+
+
 def test_bain_program_page_is_excluded():
     assert not is_specific_internship_listing(
         "Internships & Programs",

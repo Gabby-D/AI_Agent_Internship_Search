@@ -125,7 +125,7 @@ def test_rtx_uses_accessible_phenom_bootstrap_page():
 
     assert source.collector == "phenom_api"
     assert source.careers_url == (
-        "https://careers.rtx.com/global/en/campus?keywords=intern"
+        "https://careers.rtx.com/global/en/campusprograms"
     )
     assert source.alternate_careers_urls == ()
 
@@ -251,6 +251,15 @@ def test_new_requested_companies_use_reviewed_official_sources():
         "SodaStream": ("pepsicojobs.com/main/jobs", "jibe_jobs"),
         "CyberArk": ("paloaltonetworks.wd5.myworkdayjobs.com", "cyberark_parent_workday"),
         "Toyota": ("careers.toyota.com/us/en/search-results", "phenom_api"),
+        "Wix": ("careers.wix.com/positions", "wix_positions"),
+        "Elbit Systems": ("elbitsystemscareer.com/jobs", "elbit_jobs"),
+        "IBM": ("www.ibm.com/careers/search", "ibm_careers"),
+        "Levi's": ("levistraussandco.wd5.myworkdayjobs.com/en-US/External", "workday_api"),
+        "The Aerospace Corporation": (
+            "aero.wd5.myworkdayjobs.com/External",
+            "workday_api",
+        ),
+        "Rafael": ("career.rafael.co.il", "auto"),
     }
 
     for company_name, (url_part, collector) in expected.items():

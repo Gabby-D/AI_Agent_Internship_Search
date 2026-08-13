@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 INTERNSHIP_TERMS = (
     "internship",
@@ -34,6 +34,7 @@ GENERIC_EXACT_TITLES = {
     "jobs",
     "students",
     "students & graduates overview",
+    "students and graduates",
     "internship program",
     "internship programs",
 }
@@ -102,6 +103,7 @@ SPECIFIC_URL_FRAGMENTS = (
     "/jobs/view/",
     "/opening/",
     "/position/",
+    "/careers/details/",
     "/viewjob",
     "careersection",
     "gh_jid=",
@@ -216,7 +218,9 @@ def is_specific_internship_listing(title: str, url: str) -> bool:
 
 def mentions_internship(title: str, url: str) -> bool:
     searchable = f"{title} {url}"
-    return any(pattern.search(searchable) for pattern in INTERNSHIP_TERM_PATTERNS)
+    if any(pattern.search(searchable) for pattern in INTERNSHIP_TERM_PATTERNS):
+        return True
+    return bool(re.search(r"\bstudents?\b", title, re.IGNORECASE))
 
 
 def is_generic_landing_page(title: str, url: str) -> bool:
@@ -299,11 +303,16 @@ def has_specific_job_url(url: str) -> bool:
         return False
     if "indeed.com/jobs?" in url or "indeed.com/q-" in url:
         return False
-    if not any(fragment in url for fragment in SPECIFIC_URL_FRAGMENTS):
-        return False
 
     parsed = urlparse(url)
     path = parsed.path.rstrip("/")
+    query = parse_qs(parsed.query)
+    job_query_id = next(iter(query.get("id") or query.get("jobid") or []), "").strip()
+    if path.endswith("/jobs") and job_query_id.isdigit():
+        return True
+
+    if not any(fragment in url for fragment in SPECIFIC_URL_FRAGMENTS):
+        return False
 
     if "/job/" in url and path.count("/") >= 3:
         return True
@@ -324,12 +333,19 @@ def has_specific_job_url(url: str) -> bool:
         for marker in ("jobid=", "requisition", "reqid=", "gh_jid=", "careersection")
     ):
         return True
+    if "/careers/details/" in url and path.count("/") >= 3:
+        return True
     return "/opening/" in url or "/position/" in url
 
 
 def has_specific_job_title(title: str) -> bool:
     if re.search(r"סטודנט(?:ית|ים|יות)?|סטודנט\s*[/.-]\s*ית", title):
         return len(title.split()) >= 2
+    if re.search(r"\bstudents?\b", title, re.IGNORECASE):
+        return any(
+            re.search(rf"\b{re.escape(role)}\b", title, re.IGNORECASE)
+            for role in ROLE_TITLE_TERMS
+        )
     if re.search(r"\b20(26|27)\b", title):
         return True
     if re.search(r"\bsummer\b", title) and re.search(r"\bintern", title):

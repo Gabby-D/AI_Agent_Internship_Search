@@ -112,9 +112,13 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         collector="pixar_jobs",
     ),
     "levi's": SourceMetadata(
-        careers_url="https://careers.levistrauss.com/go/Internships-%26-Entry-Level-Opportunities/8775602/",
-        source_type="company_careers_page",
-        notes="Levi Strauss internships and entry-level programs page.",
+        careers_url="https://levistraussandco.wd5.myworkdayjobs.com/en-US/External",
+        source_type="company_careers_search",
+        notes=(
+            "Complete Levi Strauss public Workday board. The former Phenom "
+            "careers.levistrauss.com host no longer resolves."
+        ),
+        collector="workday_api",
     ),
     "bluevine": SourceMetadata(
         careers_url="https://job-boards.greenhouse.io/bluevineus",
@@ -279,16 +283,24 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         collector="eightfold_pcsx",
     ),
     "rtx": SourceMetadata(
-        careers_url=(
-            "https://careers.rtx.com/global/en/campus?keywords=intern"
-        ),
+        careers_url="https://careers.rtx.com/global/en/campusprograms",
         source_type="company_careers_search",
         notes=(
-            "Uses RTX's accessible campus page to configure the complete public "
-            "Phenom internship search without relying on Cloudflare-blocked "
-            "search-result HTML."
+            "Uses RTX's accessible campus-programs page to configure the "
+            "complete public Phenom jobs widget. The former campus search URL "
+            "now 404s, and search-result HTML remains Cloudflare-blocked."
         ),
         collector="phenom_api",
+    ),
+    "the aerospace corporation": SourceMetadata(
+        careers_url="https://aero.wd5.myworkdayjobs.com/External",
+        source_type="company_careers_search",
+        notes=(
+            "Complete Aerospace Corporation public Workday board. The "
+            "aerospace.org careers pages return Cloudflare 403 to unattended "
+            "clients."
+        ),
+        collector="workday_api",
     ),
     "bolt threads": SourceMetadata(
         careers_url="https://boltthreads.com/",
@@ -488,14 +500,20 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         careers_url="https://career.rafael.co.il/",
         source_type="company_careers_search",
         notes=(
-            "Official Rafael careers portal. Access failures are recorded visibly "
-            "because the site may restrict automated clients by network."
+            "Official Rafael careers portal still returns HTTP 491 (Link11) to "
+            "unattended clients. The corporate site is bot-challenged, and no "
+            "public ATS board or careers API was found. Keep this as a source "
+            "diagnostic; do not treat it as verified zero openings."
         ),
     ),
     "wix": SourceMetadata(
         careers_url="https://careers.wix.com/positions",
         source_type="company_careers_search",
-        notes="Official Wix open-positions search.",
+        notes=(
+            "Complete official Wix position sitemap. Student and intern titles "
+            "are identified locally. The Workday CXS board is currently unavailable."
+        ),
+        collector="wix_positions",
     ),
     "cloudflare": SourceMetadata(
         careers_url="https://job-boards.greenhouse.io/cloudflare",
@@ -507,7 +525,11 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
     "elbit systems": SourceMetadata(
         careers_url="https://elbitsystemscareer.com/jobs",
         source_type="company_careers_search",
-        notes="Official Elbit Systems jobs search.",
+        notes=(
+            "Complete Elbit Systems jobs JSON from the official careers host. "
+            "Student-category and internship titles are identified locally."
+        ),
+        collector="elbit_jobs",
     ),
     "dell": SourceMetadata(
         careers_url=(
@@ -530,13 +552,13 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         collector="eightfold_pcsx",
     ),
     "ibm": SourceMetadata(
-        careers_url="https://careers.ibm.com/en_US/careers/SearchJobs",
+        careers_url="https://www.ibm.com/careers/search",
         source_type="company_careers_search",
         notes=(
-            "Official IBM careers search. Unsupported or blocked responses are "
-            "recorded as source issues rather than treated as zero openings."
+            "Complete IBM careers search API for roles tagged Internship or Intern. "
+            "The former BrassRing search page is blocked by a WAF challenge."
         ),
-        alternate_careers_urls=("https://www.ibm.com/careers/internships",),
+        collector="ibm_careers",
     ),
     "intel": SourceMetadata(
         careers_url="https://intel.wd1.myworkdayjobs.com/External",

@@ -60,6 +60,29 @@ UNSUPPORTED_LAYOUT_WARNING = (
 MCKINSEY_JOBS_API = (
     "https://gateway.mckinsey.com/apigw-x0cceuow60/v1/api/jobs/search"
 )
+IBM_CAREERS_API = "https://www-api.ibm.com/search/api/v2"
+IBM_INTERNSHIP_FIELD = "field_keyword_18"
+IBM_INTERNSHIP_FACETS = ("Internship", "Intern")
+ELBIT_JOBS_PATHS = (
+    "/cron/jobs.json",
+    "/api/jobs",
+    "/api/v1/jobs",
+    "/api/jobs/search",
+)
+WIX_SITEMAP_PATH = "/sitemap.xml"
+WIX_TITLE_SUFFIXES = (" | Wix Careers", " | Wix")
+OG_TITLE_RE = re.compile(
+    r'property=["\']og:title["\'][^>]*content=["\']([^"\']+)["\']|'
+    r'content=["\']([^"\']+)["\'][^>]*property=["\']og:title["\']',
+    re.IGNORECASE,
+)
+ELBIT_STUDENT_CATEGORIES = {
+    "6",
+    "students",
+    "student",
+    "סטודנטים",
+    "סטודנט",
+}
 PHENOM_REFNUM_RE = re.compile(r'"refNum"\s*:\s*"([^"]+)"')
 NEXT_DATA_RE = re.compile(
     r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
@@ -140,7 +163,10 @@ EXHAUSTIVE_API_STRATEGIES = {
     "profusa_careers",
     "greenhouse_api",
     "jibe_jobs",
+    "elbit_jobs",
+    "wix_positions",
     "goldman_higher",
+    "ibm_careers",
     "lemonade_jobs",
     "lever_api",
     "mckinsey_jobs",
@@ -353,6 +379,12 @@ def run_collector_strategy(
         return collect_oracle_recruiting_postings(source, html, collected_date)
     if strategy == "goldman_higher":
         return collect_goldman_higher_postings(source, collected_date)
+    if strategy == "ibm_careers":
+        return collect_ibm_careers_postings(source, collected_date)
+    if strategy == "elbit_jobs":
+        return collect_elbit_postings(source, collected_date)
+    if strategy == "wix_positions":
+        return collect_wix_postings(source, collected_date)
     if strategy == "lemonade_jobs":
         return collect_lemonade_postings(source, html, collected_date)
     if strategy == "pixar_jobs":
@@ -1607,7 +1639,7 @@ def collect_workday_postings(
                 JobPosting(
                     title=title,
                     company=source.company,
-                    location=clean_title(str(record.get("locationsText") or "Unknown")),
+                    location=_workday_location(record),
                     posting_url=posting_url,
                     date_collected=collected_date,
                     source_url=source.careers_url,
@@ -1627,6 +1659,24 @@ def collect_workday_postings(
             f"Workday pagination exceeded {MAX_ATS_API_PAGES} API pages."
         )
     return postings
+
+
+def _workday_location(record: dict[str, Any]) -> str:
+    raw_text = str(record.get("locationsText") or "").strip()
+    if raw_text:
+        return clean_title(raw_text)
+    bullets = record.get("bulletFields")
+    if isinstance(bullets, list):
+        for item in reversed(bullets):
+            candidate = clean_title(str(item or ""))
+            if not candidate or candidate == "Untitled posting":
+                continue
+            if re.fullmatch(r"R-\d+", candidate, re.IGNORECASE):
+                continue
+            if candidate.lower() in {"spotlight job", "hot job"}:
+                continue
+            return candidate
+    return "Unknown"
 
 
 def collect_cyberark_parent_workday_postings(
@@ -2008,6 +2058,361 @@ def collect_goldman_higher_postings(
             f"Goldman Sachs pagination exceeded {MAX_ATS_API_PAGES} API pages."
         )
     return postings
+
+
+def collect_ibm_careers_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    post_json: PostJson | None = None,
+) -> list[JobPosting]:
+    """Page IBM's public careers search API for internship-tagged roles."""
+
+    poster = post_json or post_public_json
+    page_size = 30
+    postings: list[JobPosting] = []
+    seen_urls: set[str] = set()
+    for facet in IBM_INTERNSHIP_FACETS:
+        offset = 0
+        exhausted = False
+        for _ in range(MAX_ATS_API_PAGES):
+            payload = poster(
+                IBM_CAREERS_API,
+                ibm_careers_search_body(facet=facet, offset=offset, page_size=page_size),
+            )
+            hits = ibm_careers_hits(payload)
+            if not hits:
+                exhausted = True
+                break
+            for record in hits:
+                posting = ibm_careers_posting(source, record, collected_date)
+                if posting is None or posting.posting_url in seen_urls:
+                    continue
+                seen_urls.add(posting.posting_url)
+                postings.append(posting)
+            offset += len(hits)
+            if len(hits) < page_size:
+                exhausted = True
+                break
+        if not exhausted:
+            raise RuntimeError(
+                f"IBM careers pagination exceeded {MAX_ATS_API_PAGES} API pages."
+            )
+    return postings
+
+
+def ibm_careers_search_body(
+    *,
+    facet: str,
+    offset: int,
+    page_size: int,
+) -> dict[str, Any]:
+    return {
+        "appId": "careers",
+        "scopes": ["careers2"],
+        "query": {"bool": {"must": []}},
+        "post_filter": {"bool": {"must": [{"term": {IBM_INTERNSHIP_FIELD: facet}}]}},
+        "size": page_size,
+        "from": offset,
+        "sort": [{"_score": "desc"}, {"pageviews": "desc"}],
+        "lang": "zz",
+        "localeSelector": {},
+        "sm": {"query": "", "lang": "zz"},
+        "_source": [
+            "_id",
+            "title",
+            "url",
+            "description",
+            "language",
+            "field_keyword_05",
+            "field_keyword_08",
+            "field_keyword_17",
+            "field_keyword_18",
+            "field_keyword_19",
+        ],
+    }
+
+
+def ibm_careers_hits(payload: Any) -> list[dict[str, Any]]:
+    hits = payload.get("hits") if isinstance(payload, dict) else None
+    records = hits.get("hits") if isinstance(hits, dict) else None
+    if not isinstance(records, list):
+        raise ValueError("IBM careers API returned an unexpected response.")
+    return [record for record in records if isinstance(record, dict)]
+
+
+def ibm_careers_posting(
+    source: CompanySource,
+    record: dict[str, Any],
+    collected_date: str,
+) -> JobPosting | None:
+    details = record.get("_source")
+    if not isinstance(details, dict):
+        details = record
+    title = clean_title(str(details.get("title") or ""))
+    posting_url = str(details.get("url") or "").strip()
+    if (
+        not posting_url
+        or not posting_url.startswith(("http://", "https://"))
+        or not is_specific_internship_listing(title, posting_url)
+    ):
+        return None
+    location_parts = [
+        clean_title(str(details.get(key) or ""))
+        for key in ("field_keyword_19", "field_keyword_05", "field_keyword_17")
+        if details.get(key)
+    ]
+    return JobPosting(
+        title=title,
+        company=source.company,
+        location="; ".join(part for part in location_parts if part) or "Unknown",
+        posting_url=posting_url,
+        date_collected=collected_date,
+        source_url=source.careers_url,
+        eligibility_text=semantic_page_text(
+            " ".join(
+                str(details.get(key) or "")
+                for key in ("field_keyword_08", "description")
+            )
+        ),
+    )
+
+
+def collect_elbit_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    get_json: GetJson | None = None,
+) -> list[JobPosting]:
+    """Read Elbit's official same-origin jobs JSON and keep student/intern roles."""
+
+    parsed = urlparse(source.careers_url)
+    if not parsed.netloc:
+        raise ValueError("Elbit careers host could not be determined.")
+    origin = f"{parsed.scheme or 'https'}://{parsed.netloc}"
+    loader = get_json or get_public_json
+    records: list[Any] | None = None
+    errors: list[str] = []
+    for path in ELBIT_JOBS_PATHS:
+        endpoint = f"{origin}{path}"
+        try:
+            payload = loader(endpoint)
+        except Exception as error:  # noqa: BLE001 - try the next official path.
+            errors.append(f"{path} failed: {error}")
+            continue
+        extracted = elbit_job_records(payload)
+        if extracted is not None:
+            records = extracted
+            break
+        errors.append(f"{path} returned an unexpected response.")
+    if records is None:
+        detail = "; ".join(errors) if errors else "no jobs JSON endpoint responded."
+        raise ValueError(f"Elbit jobs API was not found: {detail}")
+
+    postings: list[JobPosting] = []
+    seen_urls: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        title = clean_title(
+            str(
+                record.get("title")
+                or record.get("name")
+                or record.get("jobTitle")
+                or ""
+            )
+        )
+        category = clean_title(
+            str(
+                record.get("category")
+                or record.get("expertise")
+                or record.get("areaOfInterest")
+                or ""
+            )
+        )
+        category_id = str(
+            record.get("categoryId")
+            or record.get("expertise")
+            or record.get("category")
+            or ""
+        ).strip()
+        category_ids = {category_id.lower()} if category_id else set()
+        extra_ids = record.get("categoryIds")
+        if isinstance(extra_ids, list):
+            category_ids.update(str(item).strip().lower() for item in extra_ids if item)
+        posting_url = elbit_job_url(origin, record)
+        searchable = " ".join(part for part in (title, category, posting_url) if part)
+        is_student_category = bool(category_ids & ELBIT_STUDENT_CATEGORIES) or (
+            category.lower() in ELBIT_STUDENT_CATEGORIES
+        )
+        if is_student_category:
+            searchable = f"{searchable} student"
+        if not posting_url or posting_url in seen_urls:
+            continue
+        if not (
+            is_student_category or is_specific_internship_listing(searchable, posting_url)
+        ):
+            continue
+        seen_urls.add(posting_url)
+        location = elbit_display_location(
+            str(
+                record.get("location")
+                or record.get("locationAddress")
+                or record.get("area")
+                or record.get("city")
+                or record.get("region")
+                or ""
+            )
+        )
+        postings.append(
+            JobPosting(
+                title=title,
+                company=source.company,
+                location=location or "Unknown",
+                posting_url=posting_url,
+                date_collected=collected_date,
+                source_url=source.careers_url,
+                eligibility_text=semantic_page_text(
+                    " ".join(
+                        str(record.get(key) or "")
+                        for key in (
+                            "category",
+                            "description",
+                            "jobDescription",
+                            "content",
+                        )
+                    )
+                ),
+            )
+        )
+    return postings
+
+
+def elbit_job_records(payload: Any) -> list[Any] | None:
+    if isinstance(payload, list):
+        return payload
+    if not isinstance(payload, dict):
+        return None
+    for key in ("jobs", "data", "items", "results"):
+        candidate = payload.get(key)
+        if isinstance(candidate, list):
+            return candidate
+        if isinstance(candidate, dict):
+            nested = elbit_job_records(candidate)
+            if nested is not None:
+                return nested
+    return None
+
+
+def elbit_job_url(origin: str, record: dict[str, Any]) -> str:
+    raw_url = str(
+        record.get("url")
+        or record.get("jobUrl")
+        or record.get("link")
+        or record.get("applyUrl")
+        or ""
+    ).strip()
+    if raw_url:
+        return normalize_link(origin, raw_url)
+    job_id = str(record.get("id") or record.get("jobId") or record.get("_id") or "").strip()
+    if not job_id:
+        return ""
+    return f"{origin}/jobs?id={quote(job_id)}"
+
+
+def elbit_display_location(location: str) -> str:
+    cleaned = clean_title(location)
+    if not cleaned or cleaned.lower() in {"unknown", "untitled posting"}:
+        return "Israel"
+    if "israel" in cleaned.lower() or "ישראל" in cleaned:
+        return cleaned
+    return f"{cleaned}, Israel"
+
+
+def collect_wix_postings(
+    source: CompanySource,
+    collected_date: str,
+    *,
+    fetch_page: FetchPage | None = None,
+) -> list[JobPosting]:
+    """Read every public Wix /position/ URL from the official sitemap."""
+
+    parsed = urlparse(source.careers_url)
+    if not parsed.netloc:
+        raise ValueError("Wix careers host could not be determined.")
+    origin = f"{parsed.scheme or 'https'}://{parsed.netloc}"
+    loader = fetch_page or fetch_public_page
+    sitemap_xml = loader(f"{origin}{WIX_SITEMAP_PATH}")
+    position_urls = wix_position_urls(sitemap_xml)
+    if not position_urls:
+        raise ValueError("Wix sitemap did not include any position pages.")
+    if len(position_urls) > MAX_ATS_API_PAGES:
+        raise RuntimeError(
+            f"Wix sitemap pagination exceeded {MAX_ATS_API_PAGES} position pages."
+        )
+
+    postings: list[JobPosting] = []
+    seen_urls: set[str] = set()
+    for posting_url in position_urls:
+        if posting_url in seen_urls:
+            continue
+        seen_urls.add(posting_url)
+        try:
+            html = loader(posting_url)
+        except Exception:  # noqa: BLE001 - stale sitemap rows should not fail the scan.
+            continue
+        title = wix_position_title(html)
+        if not title or not is_specific_internship_listing(title, posting_url):
+            continue
+        postings.append(
+            JobPosting(
+                title=title,
+                company=source.company,
+                location="Unknown",
+                posting_url=posting_url,
+                date_collected=collected_date,
+                source_url=source.careers_url,
+            )
+        )
+    return postings
+
+
+def wix_position_urls(sitemap_xml: str) -> list[str]:
+    try:
+        root = ET.fromstring(sitemap_xml)
+    except ET.ParseError as error:
+        raise ValueError("Wix sitemap XML was invalid.") from error
+    urls: list[str] = []
+    seen: set[str] = set()
+    for element in root.iter():
+        if not element.tag.endswith("loc") or not element.text:
+            continue
+        loc = element.text.strip()
+        path = urlparse(loc).path.lower()
+        if "/position/" not in path or loc in seen:
+            continue
+        seen.add(loc)
+        urls.append(loc)
+    return urls
+
+
+def wix_position_title(html: str) -> str:
+    match = OG_TITLE_RE.search(html)
+    raw_title = ""
+    if match:
+        raw_title = match.group(1) or match.group(2) or ""
+    if not raw_title:
+        title_match = re.search(
+            r"<title[^>]*>(.*?)</title>",
+            html,
+            re.IGNORECASE | re.DOTALL,
+        )
+        raw_title = title_match.group(1) if title_match else ""
+    title = clean_title(html_module.unescape(re.sub(r"<[^>]+>", " ", raw_title)))
+    for suffix in WIX_TITLE_SUFFIXES:
+        if title.endswith(suffix):
+            title = title[: -len(suffix)].rstrip()
+    return title
 
 
 def collect_lemonade_postings(
