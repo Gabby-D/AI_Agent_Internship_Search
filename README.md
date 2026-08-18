@@ -340,8 +340,9 @@ This registers:
 
 - **Recommended-company discovery** on Monday at 8:30 AM
 - **Daily collection** at 9:00 AM with `--include-job-boards`
-- **Weekly fresh collection and email send** targeted for Monday at 10:00 AM,
-  with a daily 10:00 AM recovery check
+- **Weekly fresh collection and email send** on Monday at 10:00 AM, with
+  same-day retries at 1:00 PM, 5:00 PM, 8:00 PM, and 10:00 PM, then a daily
+  10:00 AM recovery check from Tuesday onward
 
 The tasks request that Windows wake the laptop when supported. If a run is
 still missed, it starts when the computer next becomes available. Failed runs
@@ -352,8 +353,8 @@ simultaneously when several missed tasks start after one wake-up.
 The weekly email wrapper performs a fresh collection before sending, so it
 does not depend on the separate daily collection finishing first. Its ignored
 local state file records the Monday-based week only after SMTP delivery
-succeeds. The daily recovery trigger therefore retries an interrupted or
-missed Monday run on the next available day without sending duplicate weekly
+succeeds. Later Monday retry slots and the daily recovery trigger therefore
+retry an interrupted or missed Monday run without sending duplicate weekly
 summaries. An SMTP failure returns a non-zero task result and remains eligible
 for retry.
 
@@ -392,7 +393,7 @@ After setup, confirm automation is working:
 
 | Symptom | What to check |
 |---------|----------------|
-| Weekly email not received | Check Task Scheduler's last result and the newest `weekly_email_*.log`. Re-register tasks to restore wake/catch-up/daily-recovery settings. The next daily 10:00 AM check retries a week that has no successful-send marker; use `config/run_weekly_email.ps1 -Force` only when an immediate resend is needed. Gmail app passwords need `EMAIL_SMTP_HOST=smtp.gmail.com` and port `587` (defaults apply when unset). |
+| Weekly email not received | Check Task Scheduler's last result and the newest `weekly_email_*.log`. Re-register tasks to restore wake/catch-up/Monday-retry/daily-recovery settings. Monday retries at 1:00 PM, 5:00 PM, 8:00 PM, and 10:00 PM, then the daily 10:00 AM check, cover a week that has no successful-send marker; use `config/run_weekly_email.ps1 -Force` only when an immediate resend is needed. Gmail app passwords need `EMAIL_SMTP_HOST=smtp.gmail.com` and port `587` (defaults apply when unset). |
 | Task Scheduler shows non-zero last result | Open the newest file in `data/scheduled_run_output/`. Collection runs with source warnings may still finish with `Status: partial` and exit code `0` when scoring and email steps succeed. |
 | `email_sent_history.json` unchanged after send | Send did not succeed. Fix SMTP credentials and retry; history updates only after delivery succeeds. |
 | No new postings in email | All current postings may already appear in `email_sent_history.json`. Run a fresh `run-scheduled-collection` first. |

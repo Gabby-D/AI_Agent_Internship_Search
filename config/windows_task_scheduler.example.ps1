@@ -14,7 +14,8 @@ param(
 #
 # That registers:
 # - Daily collection at 9:00 AM
-# - Weekly email send on Monday at 10:00 AM
+# - Weekly email on Monday at 10:00 AM, with same-day retries at 1:00 PM,
+#   5:00 PM, 8:00 PM, and 10:00 PM, plus a daily 10:00 AM recovery check
 # Both use StartWhenAvailable so missed runs start when the computer next turns on.
 #
 # This legacy script still supports registering a single task directly.

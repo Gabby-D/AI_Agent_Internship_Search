@@ -6,6 +6,7 @@ param(
     [string] $CompanyDiscoveryAt = "08:30",
     [string] $CollectionAt = "09:00",
     [string] $WeeklyEmailAt = "10:00",
+    [string[]] $WeeklyEmailMondayRetryAts = @("10:00", "13:00", "17:00", "20:00", "22:00"),
     [string[]] $CompanyDiscoveryArgs = @(),
     [string[]] $CollectionArgs = @("--include-job-boards"),
     [string[]] $WeeklyEmailArgs = @()
@@ -15,7 +16,8 @@ param(
 # - Local review dashboard whenever the user logs on
 # - Recommended-company discovery on Monday at 8:30 AM
 # - Daily collection at 9:00 AM (includes --include-job-boards for LinkedIn, Indeed, and ATS boards)
-# - Weekly email send at 10:00 AM Monday, with a daily recovery check
+# - Weekly email on Monday at 10:00 AM, with same-day retries at 1:00 PM, 5:00 PM,
+#   8:00 PM, and 10:00 PM, then a daily 10:00 AM recovery check from Tuesday onward
 #
 # All tasks use StartWhenAvailable so a missed run starts when the computer
 # next becomes available (for example, after the machine is turned on).
@@ -111,20 +113,29 @@ $WeeklyEmailAction = New-ScheduledTaskAction `
     -Argument ("-NoProfile -WindowStyle Hidden " + (Build-WrapperArguments -WrapperScript $WeeklyEmailWrapper -ExtraArgs $WeeklyEmailArgs)) `
     -WorkingDirectory $ProjectRoot
 
-$WeeklyEmailTrigger = New-ScheduledTaskTrigger -Daily -At $WeeklyEmailAt
+# Monday ladder: 10:00 AM, then same-day retries at 1:00 PM / 5:00 PM / 8:00 PM / 10:00 PM.
+# Daily 10:00 AM recovery covers Tuesday onward (Monday 10:00 may overlap; the
+# wrapper still sends at most once per Monday-based week).
+$WeeklyEmailTriggers = @(
+    foreach ($MondayRetryAt in $WeeklyEmailMondayRetryAts) {
+        New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At $MondayRetryAt
+    }
+)
+$WeeklyEmailTriggers += New-ScheduledTaskTrigger -Daily -At $WeeklyEmailAt
 
 Register-ScheduledTask `
     -TaskName $WeeklyEmailTaskName `
     -Action $WeeklyEmailAction `
-    -Trigger $WeeklyEmailTrigger `
+    -Trigger $WeeklyEmailTriggers `
     -Settings $Settings `
-    -Description "Send one summary per Monday-based week. A daily recovery trigger catches interrupted or missed runs." `
+    -Description "Send one summary per Monday-based week. Monday retries at 10:00 AM, 1:00 PM, 5:00 PM, 8:00 PM, and 10:00 PM; a daily 10:00 AM recovery trigger catches later missed weeks." `
     -Force | Out-Null
 
+$MondayRetryLabel = ($WeeklyEmailMondayRetryAts -join ", ")
 Write-Host "Registered dashboard task '$DashboardTaskName' (starts silently at logon and restarts after failures)."
 Write-Host "Registered company-discovery task '$CompanyDiscoveryTaskName' (Monday at $CompanyDiscoveryAt, wake/catch-up/retry enabled)."
 Write-Host "Registered collection task '$CollectionTaskName' (Daily at $CollectionAt, wake/catch-up/retry enabled)."
-Write-Host "Registered weekly email task '$WeeklyEmailTaskName' (Monday target at $WeeklyEmailAt, daily recovery check, wake/catch-up/retry enabled)."
+Write-Host "Registered weekly email task '$WeeklyEmailTaskName' (Monday retries at $MondayRetryLabel; daily recovery at $WeeklyEmailAt; wake/catch-up/retry enabled)."
 Write-Host "Dashboard wrapper: $DashboardWrapper"
 Write-Host "Company-discovery wrapper: $CompanyDiscoveryWrapper"
 Write-Host "Collection wrapper: $CollectionWrapper"
