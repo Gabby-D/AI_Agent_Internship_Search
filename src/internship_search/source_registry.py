@@ -430,11 +430,9 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         source_type="company_careers_search",
         notes=(
             "Page through PayPal's official Eightfold searches for all "
-            "supported internship-title variants."
-        ),
-        alternate_careers_urls=(
-            "https://careers.pypl.com/university-hiring/University-Overview/"
-            "default.aspx",
+            "supported internship-title variants. The university-hiring "
+            "marketing page is omitted because it rate-limits unattended "
+            "requests after a complete Eightfold scan."
         ),
         collector="eightfold_pcsx",
     ),

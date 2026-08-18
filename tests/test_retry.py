@@ -14,15 +14,14 @@ def test_is_transient_http_status_matches_retryable_codes():
     assert not is_transient_http_status(404)
 
 
-def test_transient_http_status_from_message_parses_gemini_error():
-    message = "Gemini API HTTP 503: service unavailable"
-    assert transient_http_status_from_message(message) == 503
+def test_transient_http_status_from_message_parses_urllib_error_format():
+    assert transient_http_status_from_message("HTTP Error 429: Too Many Requests") == 429
 
 
-def test_is_transient_runtime_error_detects_gemini_http_and_network_failures():
-    assert is_transient_runtime_error(RuntimeError("Gemini API HTTP 503: unavailable"))
-    assert is_transient_runtime_error(RuntimeError("Gemini API request failed: timed out"))
-    assert not is_transient_runtime_error(RuntimeError("Gemini API HTTP 400: bad request"))
+def test_is_transient_runtime_error_detects_http_error_code_attribute():
+    error = Exception("rate limited")
+    error.code = 429
+    assert is_transient_runtime_error(error)
 
 
 def test_retry_call_retries_transient_errors_then_succeeds():

@@ -108,6 +108,49 @@ def test_collect_from_sources_uses_alternate_careers_urls(tmp_path):
     assert "2027 Summer Internship Program Amers" in result.postings[0].title
 
 
+def test_complete_api_scan_skips_rate_limited_alternate_urls(tmp_path, monkeypatch):
+    source = CompanySource(
+        company="PayPal",
+        website="https://www.paypal.com",
+        careers_url="https://paypal.eightfold.ai/careers?domain=paypal.com",
+        source_type="company_careers_search",
+        origin="seed",
+        has_connection=True,
+        notes="",
+        alternate_careers_urls=(
+            "https://careers.pypl.com/university-hiring/University-Overview/default.aspx",
+        ),
+        collector="eightfold_pcsx",
+    )
+    fetched_urls: list[str] = []
+
+    def fake_collect_eightfold(collect_source, collected_date, **_kwargs):
+        assert "eightfold.ai" in collect_source.careers_url
+        return []
+
+    monkeypatch.setattr(
+        "internship_search.career_collectors.collect_eightfold_postings",
+        fake_collect_eightfold,
+    )
+
+    def fetch_page(url: str) -> str:
+        fetched_urls.append(url)
+        if "pypl.com" in url:
+            raise RuntimeError("HTTP Error 429: Too Many Requests")
+        raise RuntimeError("HTML fetch blocked")
+
+    result = collect_from_sources(
+        sources=[source],
+        output_path=tmp_path / "postings.jsonl",
+        fetch_page=fetch_page,
+        collected_on=date(2026, 8, 17),
+    )
+
+    assert result.postings == []
+    assert result.errors == []
+    assert fetched_urls == []
+
+
 def test_collect_from_sources_continues_after_fetch_error(tmp_path):
     sources = [
         make_source("Good Co"),

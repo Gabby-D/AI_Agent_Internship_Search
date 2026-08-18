@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -284,7 +285,10 @@ def collect_postings_for_source_urls(
 ) -> tuple[list[JobPosting], list[CollectionError]]:
     """Fetch one or more careers URLs for a source and extract posting candidates."""
 
-    from internship_search.career_collectors import collect_postings_for_source
+    from internship_search.career_collectors import (
+        EXHAUSTIVE_API_STRATEGIES,
+        collect_postings_for_source,
+    )
 
     urls_to_try = deduplicate_urls(
         [source.careers_url, *source.alternate_careers_urls],
@@ -319,6 +323,33 @@ def collect_postings_for_source_urls(
                 last_warning = outcome.warning
             continue
 
+        # Prefer the configured exhaustive API collector before HTML fetching so
+        # rate-limited marketing pages do not obscure a successful board scan.
+        if source.collector in EXHAUSTIVE_API_STRATEGIES:
+            api_source = CompanySource(
+                company=source.company,
+                website=source.website,
+                careers_url=careers_url,
+                source_type=source.source_type,
+                origin=source.origin,
+                has_connection=source.has_connection,
+                notes=source.notes,
+                alternate_careers_urls=source.alternate_careers_urls,
+                collector=source.collector,
+            )
+            api_outcome = collect_postings_for_source(
+                source=api_source,
+                html="",
+                collected_date=collected_date,
+            )
+            if api_outcome.complete:
+                for posting in api_outcome.postings:
+                    store_posting_candidate(postings_by_url, posting)
+                if api_outcome.warning:
+                    last_warning = api_outcome.warning
+                complete_scan = True
+                break
+
         page_queue: deque[str] = deque([careers_url])
         queued_urls = {canonical_navigation_url(careers_url)}
         pages_processed = 0
@@ -330,7 +361,11 @@ def collect_postings_for_source_urls(
             try:
                 from internship_search.retry import retry_call
 
-                html = retry_call(lambda: page_fetcher(page_url), max_attempts=2)
+                html = retry_call(
+                    lambda: page_fetcher(page_url),
+                    max_attempts=2,
+                    sleep=time.sleep,
+                )
             except Exception as error:  # noqa: BLE001 - preserve source-level failures.
                 fetch_source = source_for_page(source, page_url, root_url=careers_url)
                 api_outcome = collect_postings_for_source(
@@ -344,7 +379,7 @@ def collect_postings_for_source_urls(
                     complete_scan = True
                     if canonical_navigation_url(page_url) == canonical_navigation_url(careers_url):
                         root_fetched = True
-                    continue
+                    break
                 if canonical_navigation_url(page_url) == canonical_navigation_url(careers_url):
                     fetch_failures += 1
                 errors.append(
@@ -400,6 +435,11 @@ def collect_postings_for_source_urls(
                     continue
                 queued_urls.add(canonical)
                 page_queue.append(next_url)
+
+        if complete_scan:
+            # A complete ATS/API scan is authoritative; do not probe alternates
+            # that can add false rate-limit or layout warnings.
+            break
 
         if page_queue:
             errors.append(

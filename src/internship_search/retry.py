@@ -9,7 +9,7 @@ from typing import TypeVar
 T = TypeVar("T")
 
 TRANSIENT_HTTP_STATUS_CODES = {429, 500, 502, 503, 504}
-HTTP_STATUS_PATTERN = re.compile(r"HTTP (\d{3})")
+HTTP_STATUS_PATTERN = re.compile(r"HTTP(?: Error)? (\d{3})", re.IGNORECASE)
 
 
 def is_transient_http_status(status_code: int) -> bool:
@@ -24,10 +24,13 @@ def transient_http_status_from_message(message: str) -> int | None:
 
 
 def is_transient_runtime_error(error: Exception) -> bool:
+    status_code = getattr(error, "code", None)
+    if isinstance(status_code, int) and is_transient_http_status(status_code):
+        return True
     message = str(error)
-    status_code = transient_http_status_from_message(message)
-    if status_code is not None:
-        return is_transient_http_status(status_code)
+    parsed_status = transient_http_status_from_message(message)
+    if parsed_status is not None:
+        return is_transient_http_status(parsed_status)
     lowered = message.lower()
     return "gemini api request failed" in lowered or "timed out" in lowered
 

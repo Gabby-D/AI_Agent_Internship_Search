@@ -2830,12 +2830,23 @@ def fetch_public_page(url: str) -> str:
 
 
 def get_public_json(url: str) -> Any:
-    request = Request(
-        url,
-        headers={"Accept": "application/json", "User-Agent": "internship-search/1.0"},
-    )
-    with urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8", errors="replace"))
+    from internship_search.retry import retry_call
+
+    def load_once() -> Any:
+        request = Request(
+            url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": (
+                    "Mozilla/5.0 (compatible; internship-search/1.0; "
+                    "+https://github.com/Gabby-D/AI_Agent_Internship_Search)"
+                ),
+            },
+        )
+        with urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8", errors="replace"))
+
+    return retry_call(load_once, max_attempts=4, base_delay_seconds=2.0, sleep=time.sleep)
 
 
 def post_public_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
