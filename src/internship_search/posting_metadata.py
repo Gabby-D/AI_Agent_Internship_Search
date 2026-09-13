@@ -300,6 +300,13 @@ def prefer_location(current: str, candidate: str) -> str:
     if "|" in candidate and "|" not in current and not is_missing_location(candidate):
         return candidate
     if (
+        "|" in candidate
+        and "|" in current
+        and not is_missing_location(candidate)
+        and candidate.count("|") > current.count("|")
+    ):
+        return candidate
+    if (
         normalized_current
         and normalized_candidate
         and normalized_current in normalized_candidate

@@ -206,6 +206,68 @@ def test_collect_phenom_postings_pages_complete_public_widget():
     assert calls[0][1]["size"] == 100
 
 
+def test_collect_phenom_postings_joins_multi_location_offices():
+    source = make_source(
+        company="PwC",
+        careers_url="https://jobs-us.pwc.com/us/en/search-results?keywords=intern",
+        collector="auto",
+    )
+    html = (
+        '<script>var phApp={"widgetApiEndpoint":"https://jobs-us.pwc.com/widgets",'
+        '"country":"us","locale":"en_us","refNum":"PUVPUIUS","pageId":"page5"};</script>'
+        "https://cdn.phenompeople.com/CareerConnectResources/example.js"
+    )
+
+    def fake_post_json(_url, payload):
+        if payload["from"] != 0:
+            raise AssertionError("Unexpected extra Phenom page")
+        return {
+            "refineSearch": {
+                "totalHits": 1,
+                "data": {
+                    "jobs": [
+                        {
+                            "jobId": "757253WD",
+                            "title": (
+                                "Management Consulting - Operations & Supply Chain "
+                                "Solutions Intern - Summer 2027"
+                            ),
+                            "location": "IL-Rosemont",
+                            "multi_location": [
+                                "IL-Rosemont",
+                                "CA-Los Angeles",
+                                "CA-San Francisco",
+                                "CA-Silicon Valley",
+                            ],
+                            "multi_location_array": [
+                                {"location": "IL-Rosemont"},
+                                {"location": "CA-San Francisco"},
+                                {"location": "CA-Silicon Valley"},
+                            ],
+                            "jobUrl": (
+                                "https://jobs-us.pwc.com/us/en/job/757253WD/"
+                                "management-consulting-operations-supply-chain-"
+                                "solutions-intern-summer-2027"
+                            ),
+                        }
+                    ]
+                },
+            }
+        }
+
+    postings = collect_phenom_postings(
+        source,
+        html,
+        "2026-09-12",
+        post_json=fake_post_json,
+    )
+
+    assert len(postings) == 1
+    assert postings[0].location == (
+        "IL-Rosemont | CA-Los Angeles | CA-San Francisco | CA-Silicon Valley"
+    )
+
+
 def test_detected_phenom_page_is_marked_complete(monkeypatch):
     source = make_source(
         company="Example Airline",

@@ -58,6 +58,19 @@ def test_matches_allowed_location_accepts_any_preferred_location_in_multi_locati
     assert matches_allowed_location("Other City and Preferred City", preferences_path=preferences)
 
 
+def test_matches_allowed_location_accepts_phenom_style_multi_office_bay_area(tmp_path):
+    preferences = tmp_path / "location_preferences.txt"
+    preferences.write_text("bay area\nsan francisco\nsilicon valley\n", encoding="utf-8")
+    assert matches_allowed_location(
+        "IL-Rosemont | CA-Los Angeles | CA-San Francisco | CA-Silicon Valley",
+        preferences_path=preferences,
+    )
+    assert not matches_allowed_location(
+        "IL-Rosemont | CA-Los Angeles | GA-Atlanta",
+        preferences_path=preferences,
+    )
+
+
 def test_matches_allowed_location_rejects_hybrid_remote_in_other_cities(tmp_path):
     preferences = write_preferences(tmp_path)
     assert not matches_allowed_location("Other City (Remote)", preferences_path=preferences)

@@ -128,6 +128,17 @@ def test_merge_posting_metadata_prefers_known_location():
     assert merged.company == "Virtu Financial"
 
 
+def test_merge_posting_metadata_prefers_multi_office_location():
+    primary = make_posting(location="IL-Rosemont")
+    secondary = make_posting(
+        location="IL-Rosemont | CA-San Francisco | CA-Silicon Valley"
+    )
+
+    merged = merge_posting_metadata(primary, secondary)
+
+    assert merged.location == "IL-Rosemont | CA-San Francisco | CA-Silicon Valley"
+
+
 def test_parse_greenhouse_and_lever_urls():
     assert parse_greenhouse_url("https://job-boards.greenhouse.io/virtu/jobs/8142539002") == (
         "virtu",

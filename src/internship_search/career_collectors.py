@@ -611,27 +611,61 @@ def _phenom_job_url(careers_url: str, job_id: str, title: str) -> str:
 
 
 def _phenom_location(record: dict[str, Any]) -> str:
+    """Join Phenom primary and multi-office locations so filters can match any site."""
+
+    values: list[str] = []
+    seen: set[str] = set()
+
+    def add_location(value: object) -> None:
+        if isinstance(value, dict):
+            nested = (
+                value.get("location")
+                or value.get("name")
+                or value.get("city")
+                or value.get("label")
+            )
+            if nested is None and any(value.get(key) for key in ("city", "state", "country")):
+                nested = ", ".join(
+                    str(value.get(key))
+                    for key in ("city", "state", "country")
+                    if value.get(key)
+                )
+            value = nested
+        if value is None:
+            return
+        text = clean_title(str(value)).strip(" ,;|")
+        if not text:
+            return
+        key = text.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        values.append(text)
+
     raw_location = record.get("location")
     if isinstance(raw_location, list):
-        values = [clean_title(str(item)) for item in raw_location if str(item).strip()]
-        if values:
-            return "; ".join(values)
-    if isinstance(raw_location, dict):
-        values = [
-            clean_title(str(raw_location.get(key)))
-            for key in ("city", "state", "country")
-            if raw_location.get(key)
-        ]
-        if values:
-            return ", ".join(values)
-    if isinstance(raw_location, str) and raw_location.strip():
-        return clean_title(raw_location)
-    values = [
+        for item in raw_location:
+            add_location(item)
+    else:
+        add_location(raw_location)
+
+    for key in ("multi_location", "multi_location_array", "locations"):
+        multi = record.get(key)
+        if isinstance(multi, list):
+            for item in multi:
+                add_location(item)
+        elif multi is not None:
+            add_location(multi)
+
+    if values:
+        return " | ".join(values)
+
+    fallback = [
         clean_title(str(record.get(key)))
         for key in ("city", "state", "country")
         if record.get(key)
     ]
-    return ", ".join(values) if values else "Unknown"
+    return ", ".join(fallback) if fallback else "Unknown"
 
 
 def collect_mckinsey_postings(
@@ -3228,13 +3262,7 @@ def collect_embedded_json_postings(
                 JobPosting(
                     title=title,
                     company=source.company,
-                    location=clean_title(
-                        str(
-                            record.get("location")
-                            or record.get("city")
-                            or "Unknown"
-                        )
-                    ),
+                    location=_phenom_location(record),
                     posting_url=posting_url,
                     date_collected=collected_date,
                     source_url=source.careers_url,
@@ -3573,7 +3601,7 @@ def walk_job_records(payload: Any) -> list[dict[str, Any]]:
                 {
                     "title": title,
                     "url": url,
-                    "location": first_string(node, JOB_LOCATION_KEYS) or "Unknown",
+                    "location": _phenom_location(node),
                 }
             )
 
