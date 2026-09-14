@@ -1503,6 +1503,48 @@ def test_collect_eightfold_pages_search_variants_and_loads_details():
     assert "undergraduate" in postings[0].eligibility_text.lower()
 
 
+def test_collect_eightfold_infers_domain_from_subdomain():
+    source = make_source(
+        company="Lockheed Martin",
+        careers_url="https://lockheedmartin.eightfold.ai/careers?query=Intern",
+        collector="eightfold_pcsx",
+    )
+    seen_domains: list[str] = []
+
+    def get_json(url: str) -> dict:
+        query = parse_qs(urlparse(url).query)
+        if "/position_details" in url:
+            return {
+                "data": {
+                    "id": "1",
+                    "name": "Software Intern",
+                    "locations": ["Orlando, FL"],
+                    "publicUrl": "https://lockheedmartin.eightfold.ai/careers/job/1",
+                }
+            }
+        seen_domains.append(query["domain"][0])
+        return {
+            "data": {
+                "count": 1,
+                "positions": [
+                    {
+                        "id": "1",
+                        "name": "Software Intern",
+                        "locations": ["Orlando, FL"],
+                        "positionUrl": "/careers/job/1",
+                    }
+                ],
+            }
+        }
+
+    postings = collect_eightfold_postings(source, "2026-09-14", get_json=get_json)
+
+    assert seen_domains
+    assert all(domain == "lockheedmartin.com" for domain in seen_domains)
+    assert len(postings) == 1
+    assert postings[0].title == "Software Intern"
+
+
 def test_collect_notion_public_page_reads_direct_child_role_pages():
     source = make_source(
         company="Novi Connect",

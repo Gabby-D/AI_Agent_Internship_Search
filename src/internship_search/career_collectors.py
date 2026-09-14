@@ -310,6 +310,10 @@ def resolve_collector_strategies(source: CompanySource) -> tuple[str, ...]:
         return ("lever_api", "embedded_json", "generic_links")
     if host_matches_domain(careers_host, "ashbyhq.com"):
         return ("ashby_api", "embedded_json", "generic_links")
+    if host_matches_domain(careers_host, "eightfold.ai"):
+        return ("eightfold_pcsx", "embedded_json", "generic_links")
+    if host_matches_domain(careers_host, "oraclecloud.com"):
+        return ("oracle_recruiting_api", "json_ld", "embedded_json", "generic_links")
     if host_matches_domain(careers_host, "breezy.hr"):
         return ("breezy_html", "json_ld", "embedded_json", "generic_links")
     if host_matches_domain(careers_host, "teamtailor.com"):
@@ -1139,6 +1143,12 @@ def collect_eightfold_postings(
     api_base = f"{parsed.scheme}://{parsed.netloc}/api/pcsx"
     query = parse_qs(parsed.query)
     domain = next(iter(query.get("domain", [])), "").strip()
+    if not domain:
+        host = parsed.netloc.lower().split(":", 1)[0]
+        if host.endswith(".eightfold.ai"):
+            slug = host[: -len(".eightfold.ai")].strip()
+            if slug and "." not in slug:
+                domain = f"{slug}.com"
     if not domain:
         raise ValueError(
             "Eightfold domain could not be determined from the careers URL."

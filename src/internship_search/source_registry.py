@@ -586,12 +586,64 @@ KNOWN_SEED_SOURCE_METADATA: dict[str, SourceMetadata] = {
         collector="successfactors_html",
     ),
     "the coca-cola company": SourceMetadata(
-        careers_url="https://careers.coca-colacompany.com/",
+        careers_url="https://coke.wd1.myworkdayjobs.com/coca-cola-careers",
+        source_type="company_careers_search",
+        notes="Complete Coca-Cola public Workday board.",
+        alternate_careers_urls=("https://careers.coca-colacompany.com/",),
+        collector="workday_api",
+    ),
+    "clorox": SourceMetadata(
+        careers_url="https://clorox.wd1.myworkdayjobs.com/Clorox",
+        source_type="company_careers_search",
+        notes="Complete Clorox public Workday board.",
+        collector="workday_api",
+    ),
+    "lockheed martin": SourceMetadata(
+        careers_url=(
+            "https://lockheedmartin.eightfold.ai/careers"
+            "?domain=lockheedmartin.com&query=Intern"
+        ),
+        source_type="company_careers_search",
+        notes="Complete Lockheed Martin public Eightfold PCSX careers board.",
+        alternate_careers_urls=(
+            "https://www.lockheedmartinjobs.com/college-students",
+        ),
+        collector="eightfold_pcsx",
+    ),
+    "williams sonoma": SourceMetadata(
+        careers_url=(
+            "https://ehac.fa.us6.oraclecloud.com/hcmUI/CandidateExperience/"
+            "en/sites/CX_1/jobs?keyword=Intern&mode=location"
+        ),
+        source_type="company_careers_search",
+        notes="Williams-Sonoma Inc Oracle Recruiting Cloud careers site.",
+        collector="oracle_recruiting_api",
+    ),
+    "pottery barn": SourceMetadata(
+        careers_url=(
+            "https://ehac.fa.us6.oraclecloud.com/hcmUI/CandidateExperience/"
+            "en/sites/CX_1/jobs?keyword=Intern&mode=location"
+        ),
         source_type="company_careers_search",
         notes=(
-            "Official Coca-Cola careers search. Unsupported API responses are "
-            "reported as source issues rather than zero openings."
+            "Pottery Barn roles are posted on the Williams-Sonoma Inc Oracle "
+            "Recruiting Cloud careers site."
         ),
+        collector="oracle_recruiting_api",
+    ),
+    "anthropic": SourceMetadata(
+        careers_url="https://job-boards.greenhouse.io/anthropic",
+        source_type="company_careers_search",
+        notes="Complete Anthropic public Greenhouse job board.",
+        alternate_careers_urls=("https://www.anthropic.com/careers/jobs",),
+        collector="greenhouse_api",
+    ),
+    "ambi robotics": SourceMetadata(
+        careers_url="https://jobs.lever.co/ambirobotics",
+        source_type="company_careers_search",
+        notes="Complete Ambi Robotics public Lever job board.",
+        alternate_careers_urls=("https://www.ambirobotics.com/careers",),
+        collector="lever_api",
     ),
     "sodastream": SourceMetadata(
         careers_url=(
