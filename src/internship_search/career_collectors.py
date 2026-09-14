@@ -14,8 +14,9 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any, Callable
+from http.cookiejar import CookieJar
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
 
 from internship_search.internship_listing import (
     is_specific_internship_listing,
@@ -49,10 +50,12 @@ CONSIDER_BOARD_ID_RE = re.compile(
     r"serverInitialData\s*=\s*(\{.*?\})\s*;",
     re.DOTALL,
 )
+CONSIDER_CSRF_TOKEN_RE = re.compile(r'csrfToken"\s*:\s*"([^"]+)"')
 CONSIDER_BOARD_HOSTS = {"jobs.bakarlabs.org"}
 CONSIDER_BOARD_DEFAULTS = {
     "jobs.bakarlabs.org": {"id": "bakar-bio-labs", "isParent": True},
 }
+CONSIDER_BOARD_PAGE_PATH = "/jobs"
 UNSUPPORTED_LAYOUT_WARNING = (
     "No posting candidates extracted; page may be JavaScript-rendered "
     "or use an unsupported layout."
@@ -3434,6 +3437,25 @@ def fetch_consider_board_jobs(
 
 
 def post_consider_board_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """POST to the Consider jobs API using a CSRF token from the board page session."""
+
+    parsed = urlparse(url)
+    page_url = f"{parsed.scheme}://{parsed.netloc}{CONSIDER_BOARD_PAGE_PATH}"
+    jar = CookieJar()
+    opener = build_opener(HTTPCookieProcessor(jar))
+    page_request = Request(
+        page_url,
+        headers={
+            "Accept": "text/html",
+            "User-Agent": "internship-search/1.0",
+        },
+    )
+    with opener.open(page_request, timeout=30) as page_response:
+        page_html = page_response.read().decode("utf-8", errors="replace")
+    csrf_match = CONSIDER_CSRF_TOKEN_RE.search(page_html)
+    if csrf_match is None:
+        raise ValueError("Consider board CSRF token could not be determined from the careers page.")
+
     body = json.dumps(payload).encode("utf-8")
     request = Request(
         url,
@@ -3442,10 +3464,13 @@ def post_consider_board_json(url: str, payload: dict[str, Any]) -> dict[str, Any
             "Content-Type": "application/json",
             "Accept": "application/json",
             "User-Agent": "internship-search/1.0",
+            "Origin": f"{parsed.scheme}://{parsed.netloc}",
+            "Referer": page_url,
+            "X-CSRF-Token": csrf_match.group(1),
         },
         method="POST",
     )
-    with urlopen(request, timeout=30) as response:
+    with opener.open(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8", errors="replace"))
 
 

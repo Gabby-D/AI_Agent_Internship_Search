@@ -1310,6 +1310,51 @@ def test_consider_board_fetches_later_batches():
     assert calls[1]["meta"]["sequence"] == "next-token"
 
 
+def test_post_consider_board_json_sends_csrf_token(monkeypatch):
+    from internship_search.career_collectors import post_consider_board_json
+
+    class FakeResponse:
+        def __init__(self, body: bytes):
+            self._body = body
+
+        def read(self) -> bytes:
+            return self._body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    calls: list[tuple[str, dict]] = []
+
+    class FakeOpener:
+        def open(self, request, timeout=30):  # noqa: ANN001
+            url = request.full_url
+            headers = {key.lower(): value for key, value in request.header_items()}
+            calls.append((url, headers))
+            if url.endswith("/jobs"):
+                body = b'{"csrfToken":"test-csrf-token","board":{"id":"bakar-bio-labs"}}'
+                return FakeResponse(body)
+            assert headers.get("x-csrf-token") == "test-csrf-token"
+            assert headers.get("origin") == "https://jobs.bakarlabs.org"
+            return FakeResponse(b'{"jobs":[],"meta":{}}')
+
+    monkeypatch.setattr(
+        "internship_search.career_collectors.build_opener",
+        lambda *_args, **_kwargs: FakeOpener(),
+    )
+
+    payload = post_consider_board_json(
+        "https://jobs.bakarlabs.org/api-boards/search-jobs",
+        {"meta": {"size": 60}, "board": {"id": "bakar-bio-labs"}, "query": {}, "grouped": True},
+    )
+
+    assert payload == {"jobs": [], "meta": {}}
+    assert calls[0][0] == "https://jobs.bakarlabs.org/jobs"
+    assert calls[1][0] == "https://jobs.bakarlabs.org/api-boards/search-jobs"
+
+
 def test_public_api_failure_falls_back_and_reports_warning(monkeypatch):
     source = make_source(
         company="Example Co",
