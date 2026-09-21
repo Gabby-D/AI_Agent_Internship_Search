@@ -181,6 +181,12 @@ def collect_from_registry_file(
     include_job_boards: bool = False,
     job_board_output_path: Path | str | None = default_data_file("job_board_postings.jsonl"),
     target_year: str = "2027",
+    progress_callback: Callable[[int, int, str], None] | None = None,
+    completed_source_keys: set[str] | None = None,
+    existing_postings: list[JobPosting] | None = None,
+    existing_errors: list[CollectionError] | None = None,
+    persist_callback: Callable[[list[JobPosting], list[CollectionError], list[str]], None]
+    | None = None,
 ) -> CollectionResult:
     """Collect job posting candidates from a source registry JSON file."""
 
@@ -194,6 +200,11 @@ def collect_from_registry_file(
         include_job_boards=include_job_boards,
         job_board_output_path=job_board_output_path,
         target_year=target_year,
+        progress_callback=progress_callback,
+        completed_source_keys=completed_source_keys,
+        existing_postings=existing_postings,
+        existing_errors=existing_errors,
+        persist_callback=persist_callback,
     )
 
 
@@ -206,14 +217,29 @@ def collect_from_sources(
     include_job_boards: bool = False,
     job_board_output_path: Path | str | None = default_data_file("job_board_postings.jsonl"),
     target_year: str = "2027",
+    progress_callback: Callable[[int, int, str], None] | None = None,
+    completed_source_keys: set[str] | None = None,
+    existing_postings: list[JobPosting] | None = None,
+    existing_errors: list[CollectionError] | None = None,
+    persist_callback: Callable[[list[JobPosting], list[CollectionError], list[str]], None]
+    | None = None,
 ) -> CollectionResult:
     """Fetch each source and write deduplicated posting candidates."""
 
+    from internship_search.search_checkpoint import (
+        JOB_BOARDS_CHECKPOINT_KEY,
+        raise_if_search_paused,
+        source_checkpoint_key,
+    )
+
     collected_date = (collected_on or date.today()).isoformat()
-    postings: list[JobPosting] = []
-    errors: list[CollectionError] = []
+    postings: list[JobPosting] = list(existing_postings or [])
+    errors: list[CollectionError] = list(existing_errors or [])
+    finished_keys = [key for key in (completed_source_keys or set()) if key]
+    finished_key_set = set(finished_keys)
     page_fetcher = fetch_page or fetch_url
     page_cache: dict[str, str] = {}
+    source_count = len(sources)
 
     def cached_page_fetcher(url: str) -> str:
         canonical = canonical_navigation_url(url)
@@ -221,7 +247,18 @@ def collect_from_sources(
             page_cache[canonical] = page_fetcher(url)
         return page_cache[canonical]
 
-    for source in sources:
+    def persist() -> None:
+        if persist_callback is not None:
+            persist_callback(postings, errors, list(finished_keys))
+
+    for index, source in enumerate(sources, start=1):
+        raise_if_search_paused()
+        key = source_checkpoint_key(source)
+        if key in finished_key_set:
+            continue
+        if progress_callback is not None:
+            progress_callback(index, source_count, source.company)
+        raise_if_search_paused()
         source_postings, source_errors = collect_postings_for_source_urls(
             source=source,
             page_fetcher=cached_page_fetcher,
@@ -229,9 +266,18 @@ def collect_from_sources(
         )
         postings.extend(source_postings)
         errors.extend(source_errors)
+        if key:
+            finished_keys.append(key)
+            finished_key_set.add(key)
+        persist()
 
-    if include_job_boards:
+    if include_job_boards and JOB_BOARDS_CHECKPOINT_KEY not in finished_key_set:
         from internship_search.job_board_search import search_job_boards
+
+        raise_if_search_paused()
+        if progress_callback is not None:
+            progress_callback(source_count, source_count, "job boards")
+        raise_if_search_paused()
 
         board_response = search_job_boards(
             target_year=target_year,
@@ -259,6 +305,9 @@ def collect_from_sources(
             )
             for limitation in board_response.limitations
         )
+        finished_keys.append(JOB_BOARDS_CHECKPOINT_KEY)
+        finished_key_set.add(JOB_BOARDS_CHECKPOINT_KEY)
+        persist()
 
     output = write_postings_jsonl(postings=postings, output_path=output_path)
     if errors_output_path is not None:
@@ -811,6 +860,8 @@ def merge_posting_candidates(
 def write_postings_jsonl(
     postings: list[JobPosting],
     output_path: Path | str = default_data_file("postings.jsonl"),
+    *,
+    use_remote_apis: bool = True,
 ) -> Path:
     """Write current postings to JSONL while deduplicating by canonical posting URL."""
 
@@ -820,7 +871,9 @@ def write_postings_jsonl(
     path.parent.mkdir(parents=True, exist_ok=True)
 
     merged = merge_posting_candidates(postings)
-    enriched = [enrich_job_posting(posting, use_remote_apis=True) for posting in merged]
+    enriched = [
+        enrich_job_posting(posting, use_remote_apis=use_remote_apis) for posting in merged
+    ]
     lines = [json.dumps(asdict(posting), sort_keys=True) for posting in enriched]
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     return path

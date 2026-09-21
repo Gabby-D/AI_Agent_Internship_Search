@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "local_files.ps1")
+Wait-InternshipSearchFiles
 $LogDir = Join-Path $InternshipSearchDataDir "scheduled_run_output"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 

@@ -42,7 +42,7 @@ $DashboardSettings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
-    -RestartCount 3 `
+    -RestartCount 999 `
     -RestartInterval (New-TimeSpan -Minutes 1) `
     -ExecutionTimeLimit ([TimeSpan]::Zero) `
     -MultipleInstances IgnoreNew
@@ -69,14 +69,19 @@ $DashboardAction = New-ScheduledTaskAction `
     -WorkingDirectory $ProjectRoot
 
 $CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-$DashboardTrigger = New-ScheduledTaskTrigger -AtLogOn -User $CurrentUser
+$DashboardLogonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $CurrentUser
+$DashboardKeepAliveTrigger = New-ScheduledTaskTrigger `
+    -Once `
+    -At (Get-Date).Date `
+    -RepetitionInterval (New-TimeSpan -Minutes 15) `
+    -RepetitionDuration (New-TimeSpan -Days 3650)
 
 Register-ScheduledTask `
     -TaskName $DashboardTaskName `
     -Action $DashboardAction `
-    -Trigger $DashboardTrigger `
+    -Trigger @($DashboardLogonTrigger, $DashboardKeepAliveTrigger) `
     -Settings $DashboardSettings `
-    -Description "Keep the private local internship dashboard available after Windows logon, without Codex or a terminal." `
+    -Description "Keep the private local internship dashboard available after Windows logon, without Cursor or a terminal." `
     -Force | Out-Null
 
 $CompanyDiscoveryAction = New-ScheduledTaskAction `
@@ -133,7 +138,7 @@ Register-ScheduledTask `
     -Force | Out-Null
 
 $MondayRetryLabel = ($WeeklyEmailMondayRetryAts -join ", ")
-Write-Host "Registered dashboard task '$DashboardTaskName' (starts silently at logon and restarts after failures)."
+Write-Host "Registered dashboard task '$DashboardTaskName' (starts at logon, waits for Google Drive, and checks every 15 minutes)."
 Write-Host "Registered company-discovery task '$CompanyDiscoveryTaskName' (Monday at $CompanyDiscoveryAt, wake/catch-up/retry enabled)."
 Write-Host "Registered collection task '$CollectionTaskName' (Daily at $CollectionAt, wake/catch-up/retry enabled)."
 Write-Host "Registered weekly email task '$WeeklyEmailTaskName' (Monday retries at $MondayRetryLabel; daily recovery at $WeeklyEmailAt; wake/catch-up/retry enabled)."

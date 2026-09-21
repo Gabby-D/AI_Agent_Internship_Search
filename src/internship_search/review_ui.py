@@ -21,6 +21,12 @@ from internship_search.private_inputs import (
     replace_preferences,
     write_editable_text,
 )
+from internship_search.search_checkpoint import (
+    checkpoint_is_incomplete,
+    install_search_pause_on_shutdown,
+    request_search_pause,
+)
+from internship_search.search_progress import read_search_progress, write_search_progress
 from internship_search.source_registry import load_seed_source_registry, write_source_registry
 from internship_search.review_state import (
     append_activity_log,
@@ -74,18 +80,94 @@ class ManualSearchController:
 
     def status(self) -> dict[str, object]:
         with self._lock:
-            return dict(self._state)
-
-    def start(self) -> tuple[bool, dict[str, object]]:
-        with self._lock:
-            if self._state["state"] == "running":
-                return False, dict(self._state)
-            self._state = {
+            state = dict(self._state)
+        progress = read_search_progress(self.data_dir)
+        if state.get("state") == "running":
+            if progress is not None:
+                state["percent"] = progress.percent
+                state["current"] = progress.current
+                state["total"] = progress.total
+                if progress.message:
+                    state["message"] = progress.message
+            return state
+        if progress is not None and progress.is_running():
+            return {
                 "state": "running",
-                "message": "Searching every monitored company. This can take several minutes.",
-                "started_at": datetime.now(timezone.utc).isoformat(),
+                "message": progress.message or "Search in progress.",
+                "percent": progress.percent,
+                "current": progress.current,
+                "total": progress.total,
+                "started_at": progress.started_at or state.get("started_at", ""),
                 "finished_at": "",
             }
+        if progress is not None and progress.state == "paused":
+            return {
+                "state": "paused",
+                "message": progress.message or "Paused. Search will resume when this computer is back on.",
+                "percent": progress.percent,
+                "current": progress.current,
+                "total": progress.total,
+                "started_at": progress.started_at or state.get("started_at", ""),
+                "finished_at": "",
+            }
+        if checkpoint_is_incomplete(self.data_dir):
+            from internship_search.search_checkpoint import read_search_checkpoint
+
+            checkpoint = read_search_checkpoint(self.data_dir)
+            if checkpoint is not None:
+                return {
+                    "state": "paused",
+                    "message": checkpoint.message
+                    or "Paused. Search will resume when this computer is back on.",
+                    "percent": checkpoint.percent,
+                    "current": checkpoint.current,
+                    "total": checkpoint.total,
+                    "started_at": checkpoint.started_at or state.get("started_at", ""),
+                    "finished_at": "",
+                }
+        return state
+
+    def maybe_resume(self) -> bool:
+        if not checkpoint_is_incomplete(self.data_dir):
+            return False
+        started, _ = self.start()
+        return started
+
+    def start(self) -> tuple[bool, dict[str, object]]:
+        started_at = ""
+        resuming = checkpoint_is_incomplete(self.data_dir)
+        with self._lock:
+            if self._state["state"] == "running":
+                already_running = True
+            else:
+                already_running = False
+                started_at = datetime.now(timezone.utc).isoformat()
+                message = (
+                    "Resuming the paused search…"
+                    if resuming
+                    else "Searching every monitored company. This can take several minutes."
+                )
+                self._state = {
+                    "state": "running",
+                    "message": message,
+                    "percent": 0,
+                    "started_at": started_at,
+                    "finished_at": "",
+                }
+        if already_running:
+            return False, self.status()
+        if not resuming:
+            try:
+                write_search_progress(
+                    self.data_dir,
+                    state="running",
+                    percent=0,
+                    message="Searching every monitored company. This can take several minutes.",
+                    phase="start",
+                    started_at=started_at,
+                )
+            except Exception:
+                pass
         threading.Thread(target=self._run, name="manual-internship-search", daemon=True).start()
         return True, self.status()
 
@@ -102,36 +184,63 @@ class ManualSearchController:
                 generate_email=False,
                 send_email=False,
             )
-            state = {
-                "success": "succeeded",
-                "partial": "partial",
-            }.get(result.status, "failed")
-            summary_label = "Search failed" if state == "failed" else "Search complete"
-            message = (
-                f"{summary_label}: {result.included_postings} matching internships found "
-                f"from {result.postings_collected} job candidates."
-            )
-            if result.source_errors:
-                message += (
-                    f" {result.source_errors} source issue"
-                    f"{'s' if result.source_errors != 1 else ''} were recorded for review."
+            if result.status == "paused":
+                progress = read_search_progress(self.data_dir, include_stale=True)
+                completed = {
+                    "state": "paused",
+                    "message": "Paused. Search will resume when this computer is back on.",
+                    "percent": progress.percent if progress else 0,
+                    "current": progress.current if progress else 0,
+                    "total": progress.total if progress else 0,
+                    "started_at": result.started_at,
+                    "finished_at": result.finished_at,
+                }
+            else:
+                state = {
+                    "success": "succeeded",
+                    "partial": "partial",
+                }.get(result.status, "failed")
+                summary_label = "Search failed" if state == "failed" else "Search complete"
+                message = (
+                    f"{summary_label}: {result.included_postings} matching internships found "
+                    f"from {result.postings_collected} job candidates."
                 )
-            completed = {
-                "state": state,
-                "message": message,
-                "started_at": result.started_at,
-                "finished_at": result.finished_at,
-                "postings_collected": result.postings_collected,
-                "included_postings": result.included_postings,
-                "source_errors": result.source_errors,
-            }
+                if result.source_errors:
+                    message += (
+                        f" {result.source_errors} source issue"
+                        f"{'s' if result.source_errors != 1 else ''} were recorded for review."
+                    )
+                completed = {
+                    "state": state,
+                    "message": message,
+                    "percent": 100,
+                    "started_at": result.started_at,
+                    "finished_at": result.finished_at,
+                    "postings_collected": result.postings_collected,
+                    "included_postings": result.included_postings,
+                    "source_errors": result.source_errors,
+                }
         except Exception as error:  # noqa: BLE001 - surface background failures in the UI.
             completed = {
                 "state": "failed",
                 "message": f"Search failed: {error}",
+                "percent": 100,
                 "started_at": str(self.status().get("started_at", "")),
                 "finished_at": datetime.now(timezone.utc).isoformat(),
             }
+        if completed["state"] != "paused":
+            try:
+                write_search_progress(
+                    self.data_dir,
+                    state="failed" if completed["state"] == "failed" else "completed",
+                    percent=100,
+                    message=str(completed["message"]),
+                    phase="done",
+                    started_at=str(completed.get("started_at") or ""),
+                    finished_at=str(completed.get("finished_at") or ""),
+                )
+            except Exception:
+                pass
         with self._lock:
             self._state = completed
 
@@ -146,7 +255,13 @@ def start_review_ui(
 ) -> ReviewUIServer:
     data_path = Path(data_dir)
     private_path = Path(private_dir)
-    handler = _build_handler(data_path=data_path, private_path=private_path)
+    install_search_pause_on_shutdown()
+    search_controller = ManualSearchController(data_path, private_path)
+    handler = _build_handler(
+        data_path=data_path,
+        private_path=private_path,
+        search_controller=search_controller,
+    )
     try:
         server = ThreadingHTTPServer((host, port), handler)
     except OSError as error:
@@ -165,9 +280,11 @@ def start_review_ui(
     if open_browser:
         webbrowser.open(dashboard_url)
 
+    search_controller.maybe_resume()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        request_search_pause()
         print("\nStopping review UI.")
     finally:
         server.server_close()
@@ -180,8 +297,13 @@ def is_address_in_use(error: OSError) -> bool:
     return error.errno in {48, 98, 10048}
 
 
-def _build_handler(data_path: Path, private_path: Path):
-    search_controller = ManualSearchController(data_path, private_path)
+def _build_handler(
+    data_path: Path,
+    private_path: Path,
+    search_controller: ManualSearchController | None = None,
+):
+    if search_controller is None:
+        search_controller = ManualSearchController(data_path, private_path)
 
     class ReviewUIHandler(BaseHTTPRequestHandler):
         data_dir = data_path
@@ -612,9 +734,36 @@ def render_review_page() -> str:
     .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
     header.topbar h1 { margin: 0; font-size: 22px; font-weight: 600; }
     .search-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    #search-status { color: var(--text-muted); font-size: 13px; max-width: 520px; }
+    #search-status { color: var(--text-muted); font-size: 13px; max-width: 560px; }
     #search-status.error { color: var(--danger); }
     #search-status.message { color: var(--success); }
+    .search-progress {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .search-progress[hidden] { display: none; }
+    .search-progress-track {
+      flex: 1;
+      height: 8px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .search-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.35s ease;
+    }
+    #search-progress-percent {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      min-width: 3.25em;
+      text-align: right;
+    }
     button:disabled { cursor: wait; opacity: .65; }
     .policy-banner {
       background: var(--accent-soft); color: #3730a3; border-radius: var(--radius);
@@ -707,6 +856,12 @@ def render_review_page() -> str:
           <button id="run-search" class="primary" type="button">Run search now</button>
         </div>
       </div>
+      <div id="search-progress" class="search-progress" hidden>
+        <div class="search-progress-track">
+          <div class="search-progress-fill" id="search-progress-fill"></div>
+        </div>
+        <span id="search-progress-percent">0%</span>
+      </div>
       <p id="location-policy" class="policy-banner"></p>
     </header>
     <nav class="tabs" role="tablist">
@@ -796,13 +951,27 @@ def render_review_page() -> str:
     function renderSearchStatus(status) {
       const button = document.getElementById("run-search");
       const message = document.getElementById("search-status");
+      const progress = document.getElementById("search-progress");
+      const fill = document.getElementById("search-progress-fill");
+      const percentLabel = document.getElementById("search-progress-percent");
       if (!button || !message) return;
       const running = status.state === "running";
+      const paused = status.state === "paused";
+      const percent = Number(status.percent);
+      const showProgress = (running || paused) && Number.isFinite(percent);
       button.disabled = running;
-      button.textContent = running ? "Searching…" : "Run search now";
+      button.textContent = running ? "Searching…" : (paused ? "Resume search" : "Run search now");
       message.className = status.state === "failed" ? "error" :
         (status.state === "succeeded" || status.state === "partial" ? "message" : "");
       message.textContent = status.message || "Ready to search all monitored companies.";
+      if (progress) {
+        progress.hidden = !showProgress;
+      }
+      if (showProgress && fill && percentLabel) {
+        const clamped = Math.max(0, Math.min(100, percent));
+        fill.style.width = `${clamped}%`;
+        percentLabel.textContent = `${Math.round(clamped)}%`;
+      }
     }
 
     async function loadSearchStatus() {

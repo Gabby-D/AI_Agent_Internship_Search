@@ -44,13 +44,18 @@ def test_scheduled_tasks_wake_retry_serialize_and_refresh_before_email():
 
     assert "-WakeToRun" in registration
     assert "-RestartCount 3" in registration
+    assert "-RestartCount 999" in registration
+    assert "-RepetitionInterval (New-TimeSpan -Minutes 15)" in registration
     assert "-RestartInterval (New-TimeSpan -Minutes 5)" in registration
     assert "-MultipleInstances IgnoreNew" in registration
     assert all("Local\\AI_Agent_Internship_Automation" in wrapper for wrapper in wrappers)
     assert all("InternshipSearchDataDir" in wrapper for wrapper in wrappers)
+    assert all("Wait-InternshipSearchFiles" in wrapper for wrapper in wrappers)
     assert '"run-scheduled-collection"' in weekly
     assert '"--send-email"' in weekly
     assert '"--include-job-boards"' in weekly
     assert "last_successful_week" in weekly
     assert "-Daily -At $WeeklyEmailAt" in registration
     assert '"-NoProfile -WindowStyle Hidden "' in registration
+    dashboard = (PROJECT_ROOT / "config/run_dashboard.ps1").read_text(encoding="utf-8")
+    assert "Wait-InternshipSearchFiles -TimeoutSeconds 0" in dashboard

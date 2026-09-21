@@ -63,8 +63,10 @@ Current CLI commands:
 - `src/internship_search/email_delivery.py` sends weekly summaries through SMTP.
 - `src/internship_search/retry.py` retries transient provider failures with exponential backoff.
 - `src/internship_search/scheduled_collection.py` composes the full local workflow for manual or scheduled runs and records per-step diagnostics.
+- `src/internship_search/search_progress.py` writes live percent-complete status for dashboard polling during a search.
+- `src/internship_search/search_checkpoint.py` saves per-company search progress so a shutdown can pause the run and resume it later.
 - `src/internship_search/review_state.py` stores posting review status, dashboard filters, email-status classification, and UI-edited preferences.
-- `src/internship_search/review_ui.py` serves the local dashboard, review controls, and a background-safe **Run search now** action that invokes the full monitored-company workflow without sending email.
+- `src/internship_search/review_ui.py` serves the local dashboard, review controls, and a background-safe **Run search now** action that invokes the full monitored-company workflow without sending email. The header shows a live progress bar and percent while a search is running.
 - Future agent, search, scoring, email, and UI modules should be added under `src/internship_search/`.
 
 ## Modularity Guidance

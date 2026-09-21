@@ -697,6 +697,10 @@ def test_render_review_page_includes_dashboard_controls():
     assert "Run search now" in page
     assert 'postJson("/api/run-search", {})' in page
     assert "/api/search-status" in page
+    assert 'id="search-progress"' in page
+    assert "search-progress-fill" in page
+    assert "status.percent" in page
+    assert "Resume search" in page
 
 
 def test_manual_search_controller_runs_full_workflow_without_email(tmp_path):
@@ -769,6 +773,100 @@ def test_manual_search_controller_surfaces_failed_workflow_status(tmp_path):
         time.sleep(0.01)
 
     assert status["state"] == "failed"
+
+
+def test_manual_search_controller_includes_live_progress(tmp_path):
+    running = threading.Event()
+    release = threading.Event()
+
+    class Result:
+        status = "success"
+        started_at = "2026-07-23T10:00:00+00:00"
+        finished_at = "2026-07-23T10:01:00+00:00"
+        postings_collected = 10
+        included_postings = 3
+        source_errors = 0
+
+    def fake_runner(**kwargs):
+        from internship_search.search_progress import write_search_progress
+
+        write_search_progress(
+            tmp_path / "data",
+            state="running",
+            percent=37,
+            message="Searching BlackRock (12 of 141)",
+            current=12,
+            total=141,
+            phase="collect",
+        )
+        running.set()
+        release.wait(timeout=2)
+        return Result()
+
+    controller = ManualSearchController(
+        tmp_path / "data",
+        tmp_path / "private",
+        runner=fake_runner,
+    )
+    started, initial = controller.start()
+    assert started is True
+    assert initial["state"] == "running"
+    assert running.wait(timeout=2)
+    status = controller.status()
+    assert status["state"] == "running"
+    assert status["percent"] == 37
+    assert "BlackRock" in str(status["message"])
+    release.set()
+
+
+def test_manual_search_controller_surfaces_scheduled_run_progress(tmp_path):
+    from internship_search.search_progress import write_search_progress
+
+    write_search_progress(
+        tmp_path / "data",
+        state="running",
+        percent=22,
+        message="Searching Goldman Sachs (8 of 141)",
+        current=8,
+        total=141,
+        phase="collect",
+    )
+    controller = ManualSearchController(tmp_path / "data", tmp_path / "private")
+    status = controller.status()
+    assert status["state"] == "running"
+    assert status["percent"] == 22
+    assert "Goldman Sachs" in str(status["message"])
+
+
+def test_manual_search_controller_surfaces_paused_checkpoint(tmp_path):
+    from internship_search.search_checkpoint import SearchCheckpoint, write_search_checkpoint
+
+    write_search_checkpoint(
+        tmp_path / "data",
+        SearchCheckpoint(
+            status="paused",
+            started_at="2026-07-23T10:00:00+00:00",
+            collected_on="2026-07-23",
+            include_job_boards=False,
+            generate_email=False,
+            send_email=False,
+            resume_aware=None,
+            target_year="2027",
+            completed_source_keys=("alpha|https://alpha.example/careers/",),
+            job_boards_done=False,
+            collect_done=False,
+            percent=41,
+            message="Paused. Search will resume when this computer is back on.",
+            current=12,
+            total=30,
+            phase="collect",
+        ),
+    )
+    controller = ManualSearchController(tmp_path / "data", tmp_path / "private")
+    status = controller.status()
+    assert status["state"] == "paused"
+    assert status["percent"] == 41
+    assert "resume" in str(status["message"]).lower()
 
 
 def test_render_review_page_uses_tabbed_navigation():

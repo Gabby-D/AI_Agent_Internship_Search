@@ -31,6 +31,8 @@ Current generated files:
 - `weekly_email_summary.md` contains the local email-ready weekly summary draft.
 - `email_sent_history.json` contains posting URLs included in successfully sent email summaries.
 - `scheduled_collection_runs.jsonl` contains append-only run logs for manual or scheduled workflow runs.
+- `search_progress.json` contains the live percent-complete status shown in the dashboard while a search is running.
+- `search_checkpoint.json` contains the paused or in-progress search checkpoint used to resume after shutdown.
 - `scheduled_run_output/` contains console logs from the scheduled-collection and weekly-email wrapper scripts.
 - `posting_reviews.json` contains posting review status: to review, applied, not interested, or archived.
 - `posting_notes.json` contains local personal notes keyed by posting URL.

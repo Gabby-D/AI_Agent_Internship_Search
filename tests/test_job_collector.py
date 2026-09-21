@@ -1,4 +1,6 @@
 from datetime import date
+from dataclasses import replace
+import pytest
 
 from internship_search.job_collector import (
     JobPosting,
@@ -80,6 +82,81 @@ def test_collect_from_sources_records_warning_when_no_postings_found(tmp_path):
     assert result.postings == []
     assert len(result.errors) == 1
     assert "No posting candidates extracted" in result.errors[0].message
+
+
+def test_collect_from_sources_reports_progress_for_each_company(tmp_path):
+    seen: list[tuple[int, int, str]] = []
+
+    collect_from_sources(
+        sources=[make_source("Alpha"), make_source("Beta")],
+        output_path=tmp_path / "postings.jsonl",
+        fetch_page=lambda url: "<html><body><p>No jobs here</p></body></html>",
+        collected_on=date(2026, 7, 8),
+        progress_callback=lambda current, total, label: seen.append((current, total, label)),
+    )
+
+    assert seen == [(1, 2, "Alpha"), (2, 2, "Beta")]
+
+
+def test_collect_from_sources_skips_completed_companies_and_keeps_existing_postings(tmp_path):
+    fetched: list[str] = []
+    alpha = replace(make_source("Alpha"), careers_url="https://alpha.example/careers/")
+    beta = replace(make_source("Beta"), careers_url="https://beta.example/careers/")
+    existing = JobPosting(
+        title="Kept Intern",
+        company="Alpha",
+        location="Unknown",
+        posting_url="https://alpha.example/jobs/1",
+        date_collected="2026-07-08",
+        source_url="https://alpha.example/careers/",
+    )
+
+    result = collect_from_sources(
+        sources=[alpha, beta],
+        output_path=tmp_path / "postings.jsonl",
+        fetch_page=lambda url: fetched.append(url)
+        or "<html><body><p>No jobs here</p></body></html>",
+        collected_on=date(2026, 7, 8),
+        completed_source_keys={"alpha|https://alpha.example/careers/"},
+        existing_postings=[existing],
+    )
+
+    assert fetched == ["https://beta.example/careers/"]
+    assert existing in result.postings
+
+
+def test_collect_from_sources_pauses_after_completed_company(tmp_path):
+    from internship_search.search_checkpoint import (
+        SearchPaused,
+        clear_search_pause,
+        request_search_pause,
+        source_checkpoint_key,
+    )
+
+    alpha = replace(make_source("Alpha"), careers_url="https://alpha.example/careers/")
+    beta = replace(make_source("Beta"), careers_url="https://beta.example/careers/")
+    persisted: list[list[str]] = []
+
+    def on_progress(current, total, label):
+        if label == "Beta":
+            request_search_pause()
+
+    try:
+        with pytest.raises(SearchPaused):
+            collect_from_sources(
+                sources=[alpha, beta],
+                output_path=tmp_path / "postings.jsonl",
+                fetch_page=lambda url: "<html><body><p>No jobs here</p></body></html>",
+                collected_on=date(2026, 7, 8),
+                progress_callback=on_progress,
+                persist_callback=lambda postings, errors, keys: persisted.append(list(keys)),
+            )
+    finally:
+        clear_search_pause()
+
+    assert persisted
+    assert source_checkpoint_key(alpha) in persisted[-1]
+    assert source_checkpoint_key(beta) not in persisted[-1]
 
 
 def test_collect_from_sources_uses_alternate_careers_urls(tmp_path):

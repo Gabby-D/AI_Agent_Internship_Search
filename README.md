@@ -142,12 +142,12 @@ Register the Windows automation tasks once:
 powershell -ExecutionPolicy Bypass -File config/register_scheduled_tasks.ps1
 ```
 
-This includes **AI Agent Internship Dashboard**, which starts the local app
-silently whenever you log in to Windows. It does not require Codex or an open
-terminal, does not open a browser automatically, prevents duplicate server
-processes, supervises the app, and restarts it after a failure. Task Scheduler
-also has a restart policy as a second layer. Open
-**http://127.0.0.1:8765** whenever you want to use it.
+This includes **AI Agent Internship Dashboard**. Cursor is not required.
+Windows Task Scheduler starts the app when you log in, waits for Google Drive
+if needed, and checks about every 15 minutes so `http://127.0.0.1:8765` stays
+available. It does not open a browser automatically, prevents duplicate
+servers, and restarts the app if it stops. Open that address whenever you
+want to use the site.
 
 The dashboard is private to this laptop and listens only on `127.0.0.1`. It is
 available while the laptop is powered on and you are logged in; it cannot run
@@ -297,7 +297,7 @@ The dashboard has five tabs:
 - **Reference Files** edits the course list, connection notes, and resume summary, and manages local supporting attachments. Uploads accept PDF, Word, text, and image files up to 5 MB each; only text, PDF, and image attachments are currently included in Gemini scoring requests.
 - **Activity Log** displays dated local changes in reverse chronological order with filter controls and cost transparency badges.
 
-The dashboard displays the active location policy and refreshes its data every 30 seconds when a text field is not focused. Select **Run search now** in the header to search every monitored company immediately. The search runs in the background, prevents duplicate simultaneous runs, updates the page when it finishes, and reports any company career-site access problems. A manual dashboard search does not send email; scheduled email delivery remains a separate task.
+The dashboard displays the active location policy and refreshes its data every 30 seconds when a text field is not focused. Select **Run search now** in the header to search every monitored company immediately. The search runs in the background, shows a live progress bar and percent as companies are checked, prevents duplicate simultaneous runs, updates the page when it finishes, and reports any company career-site access problems. If the computer shuts down or sleeps mid-search, progress is saved after each company and the search resumes automatically when the dashboard starts again. A manual dashboard search does not send email; scheduled email delivery remains a separate task.
 
 New companies are included in the next scheduled collection or the next **Run search now** request. Supported public Greenhouse, Lever, Ashby, Workday, Phenom, Teamtailor, Breezy, and selected company-specific boards are scanned completely; other public career sites use bounded pagination and report partial-access issues instead of silently claiming complete coverage.
 

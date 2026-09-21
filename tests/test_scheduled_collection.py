@@ -40,7 +40,7 @@ def test_run_scheduled_collection_composes_pipeline_and_logs(monkeypatch, tmp_pa
     monkeypatch.setattr(
         job_collector,
         "collect_from_registry_file",
-        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027": calls.append("collect")
+        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027", **kwargs: calls.append("collect")
         or SimpleNamespace(postings=[object(), object()], errors=[]),
     )
     monkeypatch.setattr(
@@ -105,6 +105,12 @@ def test_run_scheduled_collection_composes_pipeline_and_logs(monkeypatch, tmp_pa
     ]
     assert result.log_path.exists()
     assert '"status": "success"' in result.log_path.read_text(encoding="utf-8")
+    from internship_search.search_progress import read_search_progress
+
+    progress = read_search_progress(tmp_path / "data", include_stale=True)
+    assert progress is not None
+    assert progress.percent == 100
+    assert progress.state == "completed"
     summary = summarize_scheduled_collection(result)
     assert "Step results:" in summary
     assert "- collect: succeeded" in summary
@@ -127,7 +133,7 @@ def test_run_scheduled_collection_marks_partial_when_source_errors_occur(monkeyp
     monkeypatch.setattr(
         job_collector,
         "collect_from_registry_file",
-        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027": SimpleNamespace(
+        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027", **kwargs: SimpleNamespace(
             postings=[object()],
             errors=[SimpleNamespace(company="McKinsey", message="timed out")],
         ),
@@ -188,7 +194,7 @@ def test_run_scheduled_collection_summary_includes_ai_fallbacks(monkeypatch, tmp
     monkeypatch.setattr(
         job_collector,
         "collect_from_registry_file",
-        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027": SimpleNamespace(
+        lambda registry_path, output_path, errors_output_path=None, include_job_boards=False, target_year="2027", **kwargs: SimpleNamespace(
             postings=[object()],
             errors=[],
         ),
@@ -317,6 +323,7 @@ def test_run_scheduled_collection_records_failure_and_skips_email(monkeypatch, t
         errors_output_path=None,
         include_job_boards=False,
         target_year="2027",
+        **kwargs,
     ):
         raise RuntimeError("network unavailable")
 
@@ -337,3 +344,133 @@ def test_run_scheduled_collection_records_failure_and_skips_email(monkeypatch, t
     assert result.email_postings == 0
     assert result.errors == ["network unavailable"]
     assert "Status: failed" in summarize_scheduled_collection(result)
+
+
+def test_run_scheduled_collection_skips_collect_when_checkpoint_already_finished_it(
+    monkeypatch, tmp_path
+):
+    import json
+
+    import internship_search.fit_scoring as fit_scoring
+    import internship_search.job_collector as job_collector
+    import internship_search.posting_filter as posting_filter
+    import internship_search.posting_history as posting_history
+    import internship_search.review_report as review_report
+    import internship_search.source_registry as source_registry
+    from internship_search.search_checkpoint import SearchCheckpoint, write_search_checkpoint
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "postings.jsonl").write_text(
+        json.dumps(
+            {
+                "title": "Intern",
+                "company": "Example",
+                "location": "NY",
+                "posting_url": "https://example.com/jobs/1",
+                "date_collected": "2026-07-08",
+                "source_url": "https://example.com/careers/",
+                "eligibility_text": "",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    write_search_checkpoint(
+        data_dir,
+        SearchCheckpoint(
+            status="paused",
+            started_at="2026-07-08T12:00:00+00:00",
+            collected_on="2026-07-08",
+            include_job_boards=False,
+            generate_email=False,
+            send_email=False,
+            resume_aware=None,
+            target_year="2027",
+            completed_source_keys=("example|https://example.com/careers/",),
+            job_boards_done=False,
+            collect_done=True,
+            percent=88,
+            message="Checking for new postings…",
+            phase="detect",
+        ),
+    )
+
+    monkeypatch.setattr(source_registry, "load_seed_source_registry", lambda private_dir: ["source"])
+    monkeypatch.setattr(
+        source_registry,
+        "write_source_registry",
+        lambda sources, output_path: Path(output_path),
+    )
+    monkeypatch.setattr(
+        job_collector,
+        "collect_from_registry_file",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("collect should be skipped")),
+    )
+    monkeypatch.setattr(
+        posting_history,
+        "detect_new_postings_file",
+        lambda **kwargs: SimpleNamespace(new_postings=[]),
+    )
+    monkeypatch.setattr(
+        posting_filter,
+        "filter_postings_file",
+        lambda **kwargs: SimpleNamespace(included=[object()], excluded=[]),
+    )
+    monkeypatch.setattr(
+        review_report,
+        "generate_review_report_file",
+        lambda **kwargs: SimpleNamespace(output_path=Path("data/latest_report.md")),
+    )
+    monkeypatch.setattr(
+        fit_scoring,
+        "score_postings_file",
+        lambda **kwargs: SimpleNamespace(
+            scored_postings=[object()],
+            provider="local_rule_based",
+            ai_fallback_count=0,
+        ),
+    )
+
+    result = run_scheduled_collection(
+        private_dir=tmp_path / "private",
+        data_dir=data_dir,
+        generate_email=False,
+        now=fixed_now,
+    )
+
+    assert result.status == "success"
+    assert result.postings_collected == 1
+    assert any(step.name == "collect" and "Resumed" in step.detail for step in result.steps)
+
+
+def test_run_scheduled_collection_returns_paused_when_collect_raises_search_paused(
+    monkeypatch, tmp_path
+):
+    import internship_search.job_collector as job_collector
+    import internship_search.source_registry as source_registry
+    from internship_search.search_checkpoint import SearchPaused, read_search_checkpoint
+
+    monkeypatch.setattr(source_registry, "load_seed_source_registry", lambda private_dir: ["source"])
+    monkeypatch.setattr(
+        source_registry,
+        "write_source_registry",
+        lambda sources, output_path: Path(output_path),
+    )
+    monkeypatch.setattr(
+        job_collector,
+        "collect_from_registry_file",
+        lambda **kwargs: (_ for _ in ()).throw(SearchPaused()),
+    )
+
+    result = run_scheduled_collection(
+        private_dir=tmp_path / "private",
+        data_dir=tmp_path / "data",
+        generate_email=False,
+        now=fixed_now,
+    )
+
+    assert result.status == "paused"
+    checkpoint = read_search_checkpoint(tmp_path / "data")
+    assert checkpoint is not None
+    assert checkpoint.status == "paused"
