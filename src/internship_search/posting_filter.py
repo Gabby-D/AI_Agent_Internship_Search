@@ -14,6 +14,7 @@ from internship_search.internship_listing import (
 )
 from internship_search.job_collector import JobPosting, read_postings_jsonl
 from internship_search.location_filter import LOCATION_FILTER_REASON, matches_allowed_location
+from internship_search.paths import default_data_file, default_private_dir
 from internship_search.preference_filter import (
     PREFERENCE_CONFLICT_REASON,
     title_dislike_matches,
@@ -104,13 +105,13 @@ class FilterResult:
 
 
 def filter_postings_file(
-    input_path: Path | str = "data/postings.jsonl",
-    included_output_path: Path | str = "data/filtered_postings.jsonl",
-    excluded_output_path: Path | str = "data/excluded_postings.jsonl",
-    registry_path: Path | str | None = "data/source_registry.json",
-    monitored_output_path: Path | str | None = "data/monitored_no_openings.jsonl",
-    collection_errors_path: Path | str | None = "data/collection_errors.jsonl",
-    private_dir: Path | str | None = "private",
+    input_path: Path | str = default_data_file("postings.jsonl"),
+    included_output_path: Path | str = default_data_file("filtered_postings.jsonl"),
+    excluded_output_path: Path | str = default_data_file("excluded_postings.jsonl"),
+    registry_path: Path | str | None = default_data_file("source_registry.json"),
+    monitored_output_path: Path | str | None = default_data_file("monitored_no_openings.jsonl"),
+    collection_errors_path: Path | str | None = default_data_file("collection_errors.jsonl"),
+    private_dir: Path | str | None = default_private_dir(),
 ) -> FilterResult:
     postings = read_postings_jsonl(input_path)
     dislikes: Sequence[str] = ()
@@ -133,11 +134,11 @@ def filter_postings_file(
 
 def filter_postings(
     postings: list[JobPosting],
-    included_output_path: Path | str = "data/filtered_postings.jsonl",
-    excluded_output_path: Path | str = "data/excluded_postings.jsonl",
-    registry_path: Path | str | None = "data/source_registry.json",
-    monitored_output_path: Path | str | None = "data/monitored_no_openings.jsonl",
-    collection_errors_path: Path | str | None = "data/collection_errors.jsonl",
+    included_output_path: Path | str = default_data_file("filtered_postings.jsonl"),
+    excluded_output_path: Path | str = default_data_file("excluded_postings.jsonl"),
+    registry_path: Path | str | None = default_data_file("source_registry.json"),
+    monitored_output_path: Path | str | None = default_data_file("monitored_no_openings.jsonl"),
+    collection_errors_path: Path | str | None = default_data_file("collection_errors.jsonl"),
     dislikes: Sequence[str] = (),
 ) -> FilterResult:
     filtered = [evaluate_posting(posting, dislikes=dislikes) for posting in postings]
@@ -146,7 +147,10 @@ def filter_postings(
 
     included_path = write_filtered_postings_jsonl(included, included_output_path)
     excluded_path = write_filtered_postings_jsonl(excluded, excluded_output_path)
-    clear_stale_scored_postings(included)
+    clear_stale_scored_postings(
+        included,
+        Path(included_output_path).with_name("scored_postings.jsonl"),
+    )
 
     monitored_path = None
     monitored_companies = None
@@ -320,7 +324,7 @@ def to_filtered_posting(
 
 def clear_stale_scored_postings(
     included: list[FilteredPosting],
-    scored_path: Path | str = "data/scored_postings.jsonl",
+    scored_path: Path | str = default_data_file("scored_postings.jsonl"),
 ) -> None:
     """Drop stale scored results when the included set is empty."""
 

@@ -5,9 +5,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from internship_search.paths import default_env_file
 
-def load_env_file(path: Path | str = ".env") -> dict[str, str]:
-    env_path = Path(path)
+
+def load_env_file(path: Path | str | None = None) -> dict[str, str]:
+    env_path = default_env_file() if path is None else Path(path)
     if not env_path.exists():
         return {}
 
@@ -21,7 +23,7 @@ def load_env_file(path: Path | str = ".env") -> dict[str, str]:
     return values
 
 
-def load_env_into_process(path: Path | str = ".env") -> dict[str, str]:
+def load_env_into_process(path: Path | str | None = None) -> dict[str, str]:
     values = load_env_file(path)
     for key, value in values.items():
         os.environ.setdefault(key, value)

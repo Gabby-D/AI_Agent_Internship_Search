@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from internship_search.job_collector import CollectionError, JobPosting
+from internship_search.paths import default_data_file
 from internship_search.posting_filter import FilteredPosting
 from internship_search.source_registry import CompanySource, read_source_registry
 
@@ -123,8 +124,8 @@ def generate_monitored_no_openings_file(
     included: list[FilteredPosting],
     excluded: list[FilteredPosting],
     postings: list[JobPosting],
-    output_path: Path | str = "data/monitored_no_openings.jsonl",
-    collection_errors_path: Path | str | None = "data/collection_errors.jsonl",
+    output_path: Path | str = default_data_file("monitored_no_openings.jsonl"),
+    collection_errors_path: Path | str | None = default_data_file("collection_errors.jsonl"),
 ) -> MonitoredNoOpeningsResult:
     sources = read_source_registry(registry_path)
     collection_errors = (

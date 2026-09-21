@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 from internship_search.job_collector import JobPosting, canonical_posting_url, read_postings_jsonl
+from internship_search.paths import default_data_file
 
 
 @dataclass(frozen=True)
@@ -54,10 +55,10 @@ class DedupedCurrentPostings:
 
 
 def detect_new_postings_file(
-    postings_path: Path | str = "data/postings.jsonl",
-    history_path: Path | str = "data/posting_history.json",
-    changes_output_path: Path | str = "data/posting_changes.jsonl",
-    new_output_path: Path | str = "data/new_postings.jsonl",
+    postings_path: Path | str = default_data_file("postings.jsonl"),
+    history_path: Path | str = default_data_file("posting_history.json"),
+    changes_output_path: Path | str = default_data_file("posting_changes.jsonl"),
+    new_output_path: Path | str = default_data_file("new_postings.jsonl"),
 ) -> DetectionResult:
     postings = read_postings_jsonl(postings_path)
     existing_history = read_history(history_path)

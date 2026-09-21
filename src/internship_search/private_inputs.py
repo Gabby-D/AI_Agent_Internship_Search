@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
+from internship_search.paths import default_private_dir
+
 
 class PrivateInputError(ValueError):
     """Raised when a required private input file cannot be parsed."""
@@ -57,7 +59,7 @@ _EDITABLE_TEXT_FILENAMES = frozenset(
 )
 
 
-def load_private_inputs(private_dir: Path | str = "private") -> PrivateInputs:
+def load_private_inputs(private_dir: Path | str = default_private_dir()) -> PrivateInputs:
     """Load all current private inputs from the local private directory."""
 
     private_path = Path(private_dir)
@@ -85,7 +87,7 @@ def load_private_inputs(private_dir: Path | str = "private") -> PrivateInputs:
 
 
 def read_companies(
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
 ) -> tuple[list[Company], list[str]]:
     """Read the editable company and industry lists."""
 
@@ -97,7 +99,7 @@ def read_companies(
 def replace_companies(
     companies: Sequence[Company | Mapping[str, object]],
     industries: Sequence[str],
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
 ) -> None:
     """Replace all companies and industries with a validated Markdown document."""
 
@@ -111,7 +113,7 @@ def replace_companies(
     )
 
 
-def read_preferences(private_dir: Path | str = "private") -> Preferences:
+def read_preferences(private_dir: Path | str = default_private_dir()) -> Preferences:
     """Read the editable preference lists."""
 
     return parse_preferences_file(
@@ -122,7 +124,7 @@ def read_preferences(private_dir: Path | str = "private") -> Preferences:
 def replace_preferences(
     likes: Sequence[str],
     dislikes: Sequence[str],
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
 ) -> None:
     """Replace likes and dislikes with a validated Markdown document."""
 
@@ -139,7 +141,7 @@ def replace_preferences(
 
 def read_editable_text(
     filename: str,
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
 ) -> str:
     """Read one of the raw text files exposed for editing."""
 
@@ -149,7 +151,7 @@ def read_editable_text(
 def write_editable_text(
     filename: str,
     content: str,
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
 ) -> None:
     """Write an editable raw text file, validating course data when applicable."""
 

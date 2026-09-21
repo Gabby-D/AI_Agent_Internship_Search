@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from internship_search.env_loader import get_env
+from internship_search.paths import default_private_dir
 
 RESUME_SUMMARY_FILENAMES = (
     "resume_summary.md",
@@ -35,7 +36,7 @@ def resolve_resume_scoring_enabled(override: bool | None = None) -> bool:
 
 
 def load_resume_scoring_config(
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
     *,
     resume_aware: bool | None = None,
 ) -> ResumeScoringConfig:
@@ -52,7 +53,7 @@ def load_resume_scoring_config(
 
 
 def load_resume_summary(
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
     *,
     max_chars: int = DEFAULT_RESUME_SUMMARY_MAX_CHARS,
 ) -> tuple[str | None, Path | None]:

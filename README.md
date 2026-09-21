@@ -13,6 +13,8 @@ Build a simple, useful local internship search workflow that can:
 
 ## Quick Start
 
+On a **new laptop**, follow `INSTALL.md` first: sync Google Drive to `G:\My Drive\none_git_files\AI_Agent_Internship_Search`, clone this repo, then install. Do not recreate `.env` or `private/` in the git clone unless that Drive folder is missing.
+
 ### 1. Install the standard Python package
 
 ```powershell
@@ -24,7 +26,7 @@ The project uses standard `pyproject.toml` and setuptools packaging. `uv sync` r
 
 ### 2. Add private inputs
 
-Create local files under `private/` (not committed to git):
+Create files under `G:\My Drive\none_git_files\AI_Agent_Internship_Search\private` (not committed to git):
 
 - `list_of_companies.md` — required seed companies to monitor
 - `preferences.md` — required likes, dislikes, and location preferences
@@ -39,10 +41,10 @@ See `private/README.md` for supported formats, attachment limits, and resume-han
 
 ### 3. Configure environment variables
 
-Copy `.env.example` to `.env` and fill in local credentials:
+Copy `.env.example` to the Google Drive runtime folder and fill in credentials:
 
 ```powershell
-copy .env.example .env
+copy .env.example "G:\My Drive\none_git_files\AI_Agent_Internship_Search\.env"
 ```
 
 Common variables:
@@ -128,9 +130,9 @@ Build the local windowed app once:
 powershell -ExecutionPolicy Bypass -File config/build_windows_app.ps1 -Clean
 ```
 
-Then double-click `app/Internship Search.exe`. It starts the local dashboard and opens the browser without showing a terminal. The executable contains program code only; it continues reading personal inputs and generated results from the ignored `private/` and `data/` folders beside the project. Keep the executable in the project's `app/` folder so it can locate those folders.
+Then double-click `app/Internship Search.exe`. It starts the local dashboard and opens the browser without showing a terminal. The executable contains program code only; it reads personal inputs and generated results from `G:\My Drive\none_git_files\AI_Agent_Internship_Search`. Keep the executable in the project's `app/` folder.
 
-If the dashboard is already running and healthy, opening the app simply reopens it in the browser. Startup errors are written locally to `data/app_launcher.log`.
+If the dashboard is already running and healthy, opening the app simply reopens it in the browser. Startup errors are written to `data/app_launcher.log` on Google Drive.
 
 ### Keep the dashboard available after Windows restarts
 
@@ -189,7 +191,7 @@ uv run internship-search run-scheduled-collection --include-job-boards
 
 ## Location Policy
 
-The pipeline keeps roles that match the user's preference of location or are clearly fully remote or online. Specific location preferences are stored only in the ignored `private/location_preferences.txt` file. Other and unknown locations are excluded during filtering and omitted from scoring, weekly email, and the review dashboard. Recommendation surfaces also omit explicit dislike conflicts and scored roles below the minimum recommendation threshold.
+The pipeline keeps roles that match the user's preference of location or are clearly fully remote or online. Specific location preferences are stored only in the Google Drive file `private/location_preferences.txt`. Other and unknown locations are excluded during filtering and omitted from scoring, weekly email, and the review dashboard. Recommendation surfaces also omit explicit dislike conflicts and scored roles below the minimum recommendation threshold.
 
 An empty dashboard can therefore mean that no current roles match the location policy.
 
@@ -215,7 +217,7 @@ Useful flags:
 
 ```powershell
 uv run internship-search collect --include-job-boards
-uv run internship-search collect --enrich-from-search data/internet_search_results.jsonl
+uv run internship-search collect --enrich-from-search "G:\My Drive\none_git_files\AI_Agent_Internship_Search\data\internet_search_results.jsonl"
 uv run internship-search discover-companies --update-registry
 uv run internship-search score-postings --resume-aware
 uv run internship-search weekly-email-summary --send
@@ -232,7 +234,7 @@ Google setup:
 
 1. Enable the Custom Search API in Google Cloud and create an API key.
 2. Create a Programmable Search Engine at [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) with **Search the entire web** enabled.
-3. Add both values to `.env`.
+3. Add both values to the Google Drive `.env` file.
 
 ```powershell
 uv run internship-search internet-search --company BlackRock
@@ -366,10 +368,10 @@ powershell -ExecutionPolicy Bypass -File config/run_company_discovery.ps1
 powershell -ExecutionPolicy Bypass -File config/run_weekly_email.ps1
 ```
 
-Check automation output:
+Check automation output on Google Drive (`G:\My Drive\none_git_files\AI_Agent_Internship_Search\data`):
 
-- Console logs: `data/scheduled_run_output/`
-- Structured run logs: `data/scheduled_collection_runs.jsonl`
+- Console logs: `scheduled_run_output/`
+- Structured run logs: `scheduled_collection_runs.jsonl`
 
 Quick verification script:
 
@@ -381,20 +383,20 @@ powershell -ExecutionPolicy Bypass -File config/verify_automation.ps1
 
 After setup, confirm automation is working:
 
-1. **Email credentials** — `.env` has `EMAIL_FROM`, `EMAIL_TO`, and `EMAIL_SMTP_PASSWORD` set.
-2. **Live email test** — `uv run internship-search weekly-email-summary --send` reports `Email sent to ...` and updates `data/email_sent_history.json` only after a successful send.
+1. **Email credentials** — the Google Drive `.env` has `EMAIL_FROM`, `EMAIL_TO`, and `EMAIL_SMTP_PASSWORD` set.
+2. **Live email test** — `uv run internship-search weekly-email-summary --send` reports `Email sent to ...` and updates `email_sent_history.json` on Google Drive only after a successful send.
 3. **Scheduled tasks** — Task Scheduler shows the three periodic tasks as **Ready** and the dashboard as **Running** or **Ready**, with recent last-run times after the computer is on.
-4. **Collection logs** — `data/scheduled_collection_runs.jsonl` gains a new line after each collection run. `status: partial` is normal when some company pages fail but scoring and the email draft still complete.
-5. **Wrapper logs** — `data/scheduled_run_output/` contains timestamped `.log` files from the PowerShell wrappers.
-6. **Job board search (optional)** — `uv run internship-search search-job-boards` reports `Provider: duckduckgo_job_board` and writes `data/job_board_postings.jsonl`.
-7. **Company discovery** — Monday's discovery log writes `company_discovery_*.log`, while refreshed suggestions appear in `data/discovered_companies.json` and the Companies tab.
+4. **Collection logs** — `scheduled_collection_runs.jsonl` on Google Drive gains a new line after each collection run. `status: partial` is normal when some company pages fail but scoring and the email draft still complete.
+5. **Wrapper logs** — `scheduled_run_output/` on Google Drive contains timestamped `.log` files from the PowerShell wrappers.
+6. **Job board search (optional)** — `uv run internship-search search-job-boards` reports `Provider: duckduckgo_job_board` and writes `job_board_postings.jsonl` on Google Drive.
+7. **Company discovery** — Monday's discovery log writes `company_discovery_*.log`, while refreshed suggestions appear in `discovered_companies.json` and the Companies tab.
 
 ### Troubleshooting failed runs
 
 | Symptom | What to check |
 |---------|----------------|
 | Weekly email not received | Check Task Scheduler's last result and the newest `weekly_email_*.log`. Re-register tasks to restore wake/catch-up/Monday-retry/daily-recovery settings. Monday retries at 1:00 PM, 5:00 PM, 8:00 PM, and 10:00 PM, then the daily 10:00 AM check, cover a week that has no successful-send marker; use `config/run_weekly_email.ps1 -Force` only when an immediate resend is needed. Gmail app passwords need `EMAIL_SMTP_HOST=smtp.gmail.com` and port `587` (defaults apply when unset). |
-| Task Scheduler shows non-zero last result | Open the newest file in `data/scheduled_run_output/`. Collection runs with source warnings may still finish with `Status: partial` and exit code `0` when scoring and email steps succeed. |
+| Task Scheduler shows non-zero last result | Open the newest file in the Google Drive `data/scheduled_run_output/` folder. Collection runs with source warnings may still finish with `Status: partial` and exit code `0` when scoring and email steps succeed. |
 | `email_sent_history.json` unchanged after send | Send did not succeed. Fix SMTP credentials and retry; history updates only after delivery succeeds. |
 | No new postings in email | All current postings may already appear in `email_sent_history.json`. Run a fresh `run-scheduled-collection` first. |
 | Job board search returns 0 postings | DuckDuckGo coverage depends on public search indexes. Try a custom `search-job-boards --query` using the user's desired internship cycle. Non-internship roles are filtered out. |
@@ -410,8 +412,8 @@ Wrapper exit codes:
 
 | Path | Purpose |
 |------|---------|
-| `private/` | Local-only personal inputs (ignored by git) |
-| `data/` | Generated outputs such as postings, scores, and reports |
+| `private/` | Git placeholders; live personal inputs are on Google Drive |
+| `data/` | Git placeholders; live generated outputs are on Google Drive |
 | `config/` | Example scripts for scheduling and local automation |
 | `src/internship_search/` | Main Python package |
 | `tests/` | Automated tests |
@@ -425,7 +427,7 @@ Key docs:
 
 ## Generated Data Files
 
-Common outputs in `data/`:
+Common outputs in the Google Drive `data/` folder:
 
 - `postings.jsonl` — collected posting candidates
 - `collection_errors.jsonl` — collection failures from the latest run
@@ -481,10 +483,10 @@ Companies-page list filter remains documented under `spec/future_tasks/`.
 
 Do not commit:
 
-- `.env`
-- Real files in `private/`
-- Generated files in `data/`
+- `.env` (live copy is on Google Drive)
+- Real files in `private/` (live copy is on Google Drive)
+- Generated files in `data/` (live copy is on Google Drive)
 
-Set `EMAIL_TO` in `.env` before sending. No personal recipient is stored in tracked code.
+Set `EMAIL_TO` in the Google Drive `.env` before sending. No personal recipient is stored in tracked code.
 
-The project keeps `private/` and generated `data/` files out of git by default. Gemini scoring is an explicit external-data boundary: when Gemini is selected, supported files in `private/attachments/` are sent with each scoring request even if resume-aware summary scoring is disabled. Text (`.txt`, `.md`), PDF, and image (`.png`, `.jpg`, `.jpeg`, `.gif`) attachments are sent; uploaded Word files are stored locally but are not currently included in scoring. Review attachment contents before running Gemini scoring, or use `AI_PROVIDER=local` to keep scoring local.
+The project keeps private inputs and generated data out of git by default. Those files live at `G:\My Drive\none_git_files\AI_Agent_Internship_Search`. Gemini scoring is an explicit external-data boundary: when Gemini is selected, supported files in `private/attachments/` are sent with each scoring request even if resume-aware summary scoring is disabled. Text (`.txt`, `.md`), PDF, and image (`.png`, `.jpg`, `.jpeg`, `.gif`) attachments are sent; uploaded Word files are stored locally but are not currently included in scoring. Review attachment contents before running Gemini scoring, or use `AI_PROVIDER=local` to keep scoring local.

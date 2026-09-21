@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from internship_search.paths import default_data_dir, default_data_file, default_private_dir
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -25,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     show_inputs.add_argument(
         "--private-dir",
         type=Path,
-        default=Path("private"),
+        default=default_private_dir(),
         help="Path to the private input directory.",
     )
 
@@ -36,13 +38,13 @@ def build_parser() -> argparse.ArgumentParser:
     build_registry.add_argument(
         "--private-dir",
         type=Path,
-        default=Path("private"),
+        default=default_private_dir(),
         help="Path to the private input directory.",
     )
     build_registry.add_argument(
         "--output",
         type=Path,
-        default=Path("data/source_registry.json"),
+        default=default_data_file("source_registry.json"),
         help="Path where the source registry JSON should be written.",
     )
     build_registry.add_argument(
@@ -59,19 +61,19 @@ def build_parser() -> argparse.ArgumentParser:
     collect.add_argument(
         "--registry",
         type=Path,
-        default=Path("data/source_registry.json"),
+        default=default_data_file("source_registry.json"),
         help="Path to the source registry JSON file.",
     )
     collect.add_argument(
         "--output",
         type=Path,
-        default=Path("data/postings.jsonl"),
+        default=default_data_file("postings.jsonl"),
         help="Path where collected postings should be written.",
     )
     collect.add_argument(
         "--private-dir",
         type=Path,
-        default=Path("private"),
+        default=default_private_dir(),
         help="Path to private inputs, used only if the registry is missing.",
     )
 
@@ -114,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     search_job_boards.add_argument(
         "--output",
         type=Path,
-        default=Path("data/job_board_postings.jsonl"),
+        default=default_data_file("job_board_postings.jsonl"),
         help="Path where job-board posting candidates should be written.",
     )
 
@@ -125,43 +127,43 @@ def build_parser() -> argparse.ArgumentParser:
     filter_postings.add_argument(
         "--private-dir",
         type=Path,
-        default=Path("private"),
+        default=default_private_dir(),
         help="Path to private preferences used for explicit dislike exclusions.",
     )
     filter_postings.add_argument(
         "--input",
         type=Path,
-        default=Path("data/postings.jsonl"),
+        default=default_data_file("postings.jsonl"),
         help="Path to collected posting candidates.",
     )
     filter_postings.add_argument(
         "--included-output",
         type=Path,
-        default=Path("data/filtered_postings.jsonl"),
+        default=default_data_file("filtered_postings.jsonl"),
         help="Path where included postings should be written.",
     )
     filter_postings.add_argument(
         "--excluded-output",
         type=Path,
-        default=Path("data/excluded_postings.jsonl"),
+        default=default_data_file("excluded_postings.jsonl"),
         help="Path where excluded postings should be written.",
     )
     filter_postings.add_argument(
         "--registry",
         type=Path,
-        default=Path("data/source_registry.json"),
+        default=default_data_file("source_registry.json"),
         help="Path to the source registry used to build the monitored-no-openings list.",
     )
     filter_postings.add_argument(
         "--monitored-output",
         type=Path,
-        default=Path("data/monitored_no_openings.jsonl"),
+        default=default_data_file("monitored_no_openings.jsonl"),
         help="Path where monitored companies with no openings should be written.",
     )
     filter_postings.add_argument(
         "--collection-errors",
         type=Path,
-        default=Path("data/collection_errors.jsonl"),
+        default=default_data_file("collection_errors.jsonl"),
         help="Path to collection errors from the latest collect run.",
     )
 
@@ -172,31 +174,31 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument(
         "--included",
         type=Path,
-        default=Path("data/filtered_postings.jsonl"),
+        default=default_data_file("filtered_postings.jsonl"),
         help="Path to included filtered postings.",
     )
     report.add_argument(
         "--excluded",
         type=Path,
-        default=Path("data/excluded_postings.jsonl"),
+        default=default_data_file("excluded_postings.jsonl"),
         help="Path to excluded filtered postings.",
     )
     report.add_argument(
         "--registry",
         type=Path,
-        default=Path("data/source_registry.json"),
+        default=default_data_file("source_registry.json"),
         help="Path to the source registry JSON file.",
     )
     report.add_argument(
         "--output",
         type=Path,
-        default=Path("data/latest_report.md"),
+        default=default_data_file("latest_report.md"),
         help="Path where the Markdown report should be written.",
     )
     report.add_argument(
         "--monitored",
         type=Path,
-        default=Path("data/monitored_no_openings.jsonl"),
+        default=default_data_file("monitored_no_openings.jsonl"),
         help="Path to monitored companies with no specific openings.",
     )
 
@@ -207,25 +209,25 @@ def build_parser() -> argparse.ArgumentParser:
     score_postings.add_argument(
         "--postings",
         type=Path,
-        default=Path("data/filtered_postings.jsonl"),
+        default=default_data_file("filtered_postings.jsonl"),
         help="Path to included filtered postings.",
     )
     score_postings.add_argument(
         "--private-dir",
         type=Path,
-        default=Path("private"),
+        default=default_private_dir(),
         help="Path to the private input directory.",
     )
     score_postings.add_argument(
         "--registry",
         type=Path,
-        default=Path("data/source_registry.json"),
+        default=default_data_file("source_registry.json"),
         help="Path to the source registry JSON file.",
     )
     score_postings.add_argument(
         "--output",
         type=Path,
-        default=Path("data/scored_postings.jsonl"),
+        default=default_data_file("scored_postings.jsonl"),
         help="Path where scored postings should be written.",
     )
     score_postings.add_argument(
@@ -247,25 +249,25 @@ def build_parser() -> argparse.ArgumentParser:
     detect_new.add_argument(
         "--postings",
         type=Path,
-        default=Path("data/postings.jsonl"),
+        default=default_data_file("postings.jsonl"),
         help="Path to current collected postings.",
     )
     detect_new.add_argument(
         "--history",
         type=Path,
-        default=Path("data/posting_history.json"),
+        default=default_data_file("posting_history.json"),
         help="Path to local posting history.",
     )
     detect_new.add_argument(
         "--changes-output",
         type=Path,
-        default=Path("data/posting_changes.jsonl"),
+        default=default_data_file("posting_changes.jsonl"),
         help="Path where per-run posting changes should be written.",
     )
     detect_new.add_argument(
         "--new-output",
         type=Path,
-        default=Path("data/new_postings.jsonl"),
+        default=default_data_file("new_postings.jsonl"),
         help="Path where newly discovered postings should be written.",
     )
 
@@ -276,37 +278,37 @@ def build_parser() -> argparse.ArgumentParser:
     weekly_email.add_argument(
         "--scored",
         type=Path,
-        default=Path("data/scored_postings.jsonl"),
+        default=default_data_file("scored_postings.jsonl"),
         help="Path to scored postings.",
     )
     weekly_email.add_argument(
         "--new-postings",
         type=Path,
-        default=Path("data/new_postings.jsonl"),
+        default=default_data_file("new_postings.jsonl"),
         help="Path to newly discovered postings.",
     )
     weekly_email.add_argument(
         "--registry",
         type=Path,
-        default=Path("data/source_registry.json"),
+        default=default_data_file("source_registry.json"),
         help="Path to the source registry JSON file.",
     )
     weekly_email.add_argument(
         "--output",
         type=Path,
-        default=Path("data/weekly_email_summary.md"),
+        default=default_data_file("weekly_email_summary.md"),
         help="Path where the local email summary draft should be written.",
     )
     weekly_email.add_argument(
         "--sent-history",
         type=Path,
-        default=Path("data/email_sent_history.json"),
+        default=default_data_file("email_sent_history.json"),
         help="Path to the record of postings already included in email summaries.",
     )
     weekly_email.add_argument(
         "--collection-errors",
         type=Path,
-        default=Path("data/collection_errors.jsonl"),
+        default=default_data_file("collection_errors.jsonl"),
         help="Path to latest company job-site access errors to include in the email.",
     )
     weekly_email.add_argument(
@@ -327,13 +329,13 @@ def build_parser() -> argparse.ArgumentParser:
     scheduled_collection.add_argument(
         "--private-dir",
         type=Path,
-        default=Path("private"),
+        default=default_private_dir(),
         help="Path to the private input directory.",
     )
     scheduled_collection.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("data"),
+        default=default_data_dir(),
         help="Path where generated workflow outputs and logs should be written.",
     )
     scheduled_collection.add_argument(
@@ -369,25 +371,25 @@ def build_parser() -> argparse.ArgumentParser:
     discover_companies.add_argument(
         "--private-dir",
         type=Path,
-        default=Path("private"),
+        default=default_private_dir(),
         help="Path to the private input directory.",
     )
     discover_companies.add_argument(
         "--registry",
         type=Path,
-        default=Path("data/source_registry.json"),
+        default=default_data_file("source_registry.json"),
         help="Path to the source registry JSON file.",
     )
     discover_companies.add_argument(
         "--output",
         type=Path,
-        default=Path("data/discovered_companies.json"),
+        default=default_data_file("discovered_companies.json"),
         help="Path where discovered companies JSON should be written.",
     )
     discover_companies.add_argument(
         "--report",
         type=Path,
-        default=Path("data/discovered_companies.md"),
+        default=default_data_file("discovered_companies.md"),
         help="Path where the discovery review report should be written.",
     )
     discover_companies.add_argument(
@@ -419,13 +421,13 @@ def build_parser() -> argparse.ArgumentParser:
     review_ui.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("data"),
+        default=default_data_dir(),
         help="Path to generated data files used by the review UI.",
     )
     review_ui.add_argument(
         "--private-dir",
         type=Path,
-        default=Path("private"),
+        default=default_private_dir(),
         help="Path to private input files used for default preferences.",
     )
     review_ui.add_argument(
@@ -469,7 +471,7 @@ def build_parser() -> argparse.ArgumentParser:
     internet_search.add_argument(
         "--output",
         type=Path,
-        default=Path("data/internet_search_results.jsonl"),
+        default=default_data_file("internet_search_results.jsonl"),
         help="Path where structured search results should be written.",
     )
     return parser

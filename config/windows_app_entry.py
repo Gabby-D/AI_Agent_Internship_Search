@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def project_root() -> Path:
-    """Locate the project containing the ignored private and data folders."""
+    """Locate the git project root for the packaged app."""
 
     if getattr(sys, "frozen", False):
         executable_dir = Path(sys.executable).resolve().parent
@@ -38,10 +38,14 @@ def show_error(message: str) -> None:
 
 
 def main() -> int:
+    from internship_search.env_loader import load_env_into_process
+    from internship_search.paths import default_data_dir, default_private_dir
+
     root = project_root()
-    data_dir = root / "data"
-    private_dir = root / "private"
+    data_dir = default_data_dir()
+    private_dir = default_private_dir()
     data_dir.mkdir(parents=True, exist_ok=True)
+    load_env_into_process()
     log_path = data_dir / "app_launcher.log"
     host = "127.0.0.1"
     port = int(os.environ.get("INTERNSHIP_APP_PORT", "8765"))
@@ -53,10 +57,11 @@ def main() -> int:
             webbrowser.open(url)
         return 0
 
-    if not private_dir.exists():
+    if not (private_dir / "list_of_companies.md").exists():
         message = (
-            "The private data folder was not found. Keep the app inside the project's "
-            "app folder so it can load your local data."
+            "Private inputs were not found at "
+            f"{private_dir}. Confirm Google Drive is synced to "
+            r"G:\My Drive\none_git_files\AI_Agent_Internship_Search."
         )
         show_error(message)
         return 1

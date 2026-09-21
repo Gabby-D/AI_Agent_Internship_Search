@@ -7,7 +7,7 @@ This file explains the current project layout and where new functionality should
 - `src/internship_search/cli.py` defines the command line interface.
 - `src/internship_search/__main__.py` lets the package run with `python -m internship_search`.
 - `pyproject.toml` exposes the installed CLI command as `internship-search`.
-- `INSTALL.md` documents standard `venv`/`pip`, optional `uv`, package builds, and the windowed app.
+- `INSTALL.md` documents new-laptop setup, `venv`/`pip`, optional `uv`, package builds, and the windowed app.
 
 Current CLI commands:
 
@@ -29,6 +29,7 @@ Current CLI commands:
 ## Source Code
 
 - `src/internship_search/__init__.py` stores package metadata such as the current version.
+- `src/internship_search/paths.py` points the app at Google Drive copies of gitignored `private/`, `data/`, and `.env` files.
 - `src/internship_search/cli.py` should stay focused on parsing command line arguments and calling application logic.
 - `src/internship_search/private_inputs.py` loads local private inputs into structured data.
 - `src/internship_search/source_registry.py` builds and stores company career-source registry entries.
@@ -88,12 +89,12 @@ Suggested future modules:
 - `config/settings.example.toml` is the tracked example configuration.
 - Local real configuration should be copied from the example and kept out of git if it contains personal details or secrets.
 - `.env.example` documents environment variables without storing real credentials.
-- `.env` should contain local API keys and email credentials. It is ignored by git.
+- `.env` lives at `G:\My Drive\none_git_files\AI_Agent_Internship_Search\.env` and is ignored by git.
 - `.python-version` tells `uv` which Python version this project expects.
 - `config/register_scheduled_tasks.ps1` registers daily collection and Monday weekly-email tasks with missed-run catch-up.
-- `config/run_company_discovery.ps1` refreshes recommended companies every Monday and writes a local wrapper log.
-- `config/run_scheduled_collection.ps1` runs the workflow and writes console logs under `data/scheduled_run_output/`.
-- `config/run_weekly_email.ps1` sends the weekly email summary and writes console logs under `data/scheduled_run_output/`.
+- `config/run_company_discovery.ps1` refreshes recommended companies every Monday and writes a Google Drive wrapper log.
+- `config/run_scheduled_collection.ps1` runs the workflow and writes console logs under the Google Drive `data/scheduled_run_output/` folder.
+- `config/run_weekly_email.ps1` sends the weekly email summary and writes console logs under the Google Drive `data/scheduled_run_output/` folder.
 - `config/windows_task_scheduler.example.ps1` shows how to register a single local scheduled task.
 
 ## Packaging
@@ -101,21 +102,23 @@ Suggested future modules:
 - The project is a standard setuptools package using the `src/` layout.
 - Runtime installation has no third-party dependencies; testing, package building, and app building are standard optional extras.
 - `MANIFEST.in` excludes credentials, private inputs, generated data, virtual environments, caches, and Windows-app artifacts from source distributions.
+- `src/internship_search/paths.py` is the single source of truth for gitignored runtime file locations.
+- `config/local_files.ps1` stores the same Google Drive path for PowerShell wrappers.
 - `config/windows_app_entry.py` is the no-terminal Windows dashboard entry point.
 - `config/build_windows_app.ps1` builds the local ignored `app/Internship Search.exe` with PyInstaller.
-- The packaged app reads `private/` and `data/` at runtime; those folders are never bundled into the executable.
+- The packaged app reads Google Drive `private/` and `data/` at runtime; those folders are never bundled into the executable.
 
 ## Local Data
 
-- `private/` is for personal inputs such as resume content, profile notes, skills, classes, projects, company lists, and job site lists.
-- `private/README.md` documents suggested private files.
-- Real files in `private/` are ignored by git.
+- Live personal inputs live at `G:\My Drive\none_git_files\AI_Agent_Internship_Search\private`.
+- `private/README.md` in git documents suggested private files.
+- Real private files are ignored by git.
 
 ## Generated Data
 
-- `data/` is for outputs produced by the app, including raw job postings, filtered roles, scoring results, and weekly summaries.
-- `data/README.md` explains the purpose of this directory.
-- Generated files in `data/` are ignored by git.
+- Live generated outputs live at `G:\My Drive\none_git_files\AI_Agent_Internship_Search\data`.
+- `data/README.md` in git explains the generated filenames.
+- Generated files are ignored by git.
 
 ## Specs and Planning
 

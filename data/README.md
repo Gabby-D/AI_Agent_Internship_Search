@@ -1,8 +1,10 @@
 # Generated Data
 
-Use this directory for generated search results, cached job postings, scoring outputs, and weekly summaries.
+Live generated files are stored at `G:\My Drive\none_git_files\AI_Agent_Internship_Search\data`. This repository folder only keeps this README and `.gitkeep` in git.
 
-Generated files in this directory are ignored by git by default. Some contain personal notes, search history, application state, or email metadata; do not force-add them to git.
+Use that Google Drive directory for generated search results, cached job postings, scoring outputs, and weekly summaries.
+
+Generated files are ignored by git by default. Some contain personal notes, search history, application state, or email metadata; do not force-add them to git.
 
 Current generated files:
 

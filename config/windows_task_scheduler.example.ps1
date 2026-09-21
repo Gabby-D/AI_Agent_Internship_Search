@@ -26,6 +26,7 @@ if ($RegisterAll) {
 }
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "local_files.ps1")
 $WrapperScript = Join-Path $PSScriptRoot "run_scheduled_collection.ps1"
 $ArgumentList = @("-ExecutionPolicy", "Bypass", "-File", "`"$WrapperScript`"")
 if ($CollectionArgs.Count -gt 0) {
@@ -58,4 +59,4 @@ Register-ScheduledTask `
 
 Write-Host "Registered scheduled task '$TaskName' ($Frequency at $At, StartWhenAvailable enabled)."
 Write-Host "Wrapper script: $WrapperScript"
-Write-Host "Structured run log: $(Join-Path $ProjectRoot 'data/scheduled_collection_runs.jsonl')"
+Write-Host "Structured run log: $(Join-Path $InternshipSearchDataDir 'scheduled_collection_runs.jsonl')"

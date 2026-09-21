@@ -10,6 +10,7 @@ from internship_search.monitored_companies import (
     read_monitored_no_openings_jsonl,
     render_monitored_no_openings_section,
 )
+from internship_search.paths import default_data_file
 from internship_search.posting_filter import FilteredPosting, read_filtered_postings_jsonl
 from internship_search.source_registry import CompanySource, read_source_registry
 
@@ -21,11 +22,11 @@ class ReviewReport:
 
 
 def generate_review_report_file(
-    included_path: Path | str = "data/filtered_postings.jsonl",
-    excluded_path: Path | str = "data/excluded_postings.jsonl",
-    registry_path: Path | str = "data/source_registry.json",
-    output_path: Path | str = "data/latest_report.md",
-    monitored_path: Path | str | None = "data/monitored_no_openings.jsonl",
+    included_path: Path | str = default_data_file("filtered_postings.jsonl"),
+    excluded_path: Path | str = default_data_file("excluded_postings.jsonl"),
+    registry_path: Path | str = default_data_file("source_registry.json"),
+    output_path: Path | str = default_data_file("latest_report.md"),
+    monitored_path: Path | str | None = default_data_file("monitored_no_openings.jsonl"),
 ) -> ReviewReport:
     """Generate a Markdown report from local filtered posting files."""
 

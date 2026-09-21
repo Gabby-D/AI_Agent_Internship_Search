@@ -4,6 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "local_files.ps1")
 $Python = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $EntryPoint = Join-Path $PSScriptRoot "windows_app_entry.py"
 $AppDir = Join-Path $ProjectRoot "app"
@@ -37,5 +38,5 @@ if ($LASTEXITCODE -ne 0) {
 
 $Executable = Join-Path $AppDir "Internship Search.exe"
 Write-Host "Built app: $Executable"
-Write-Host "The executable reads private data from: $(Join-Path $ProjectRoot 'private')"
-Write-Host "The executable reads generated data from: $(Join-Path $ProjectRoot 'data')"
+Write-Host "The executable reads private data from: $(Join-Path $InternshipSearchFilesRoot 'private')"
+Write-Host "The executable reads generated data from: $(Join-Path $InternshipSearchFilesRoot 'data')"

@@ -19,6 +19,7 @@ from internship_search.internship_listing import (
     is_specific_program_detail_url,
     mentions_internship,
 )
+from internship_search.paths import default_data_file
 from internship_search.source_registry import CompanySource, read_source_registry
 
 
@@ -172,13 +173,13 @@ class CareerPageLink:
 
 
 def collect_from_registry_file(
-    registry_path: Path | str = "data/source_registry.json",
-    output_path: Path | str = "data/postings.jsonl",
-    errors_output_path: Path | str | None = "data/collection_errors.jsonl",
+    registry_path: Path | str = default_data_file("source_registry.json"),
+    output_path: Path | str = default_data_file("postings.jsonl"),
+    errors_output_path: Path | str | None = default_data_file("collection_errors.jsonl"),
     fetch_page: FetchPage | None = None,
     collected_on: date | None = None,
     include_job_boards: bool = False,
-    job_board_output_path: Path | str | None = "data/job_board_postings.jsonl",
+    job_board_output_path: Path | str | None = default_data_file("job_board_postings.jsonl"),
     target_year: str = "2027",
 ) -> CollectionResult:
     """Collect job posting candidates from a source registry JSON file."""
@@ -198,12 +199,12 @@ def collect_from_registry_file(
 
 def collect_from_sources(
     sources: list[CompanySource],
-    output_path: Path | str = "data/postings.jsonl",
-    errors_output_path: Path | str | None = "data/collection_errors.jsonl",
+    output_path: Path | str = default_data_file("postings.jsonl"),
+    errors_output_path: Path | str | None = default_data_file("collection_errors.jsonl"),
     fetch_page: FetchPage | None = None,
     collected_on: date | None = None,
     include_job_boards: bool = False,
-    job_board_output_path: Path | str | None = "data/job_board_postings.jsonl",
+    job_board_output_path: Path | str | None = default_data_file("job_board_postings.jsonl"),
     target_year: str = "2027",
 ) -> CollectionResult:
     """Fetch each source and write deduplicated posting candidates."""
@@ -809,7 +810,7 @@ def merge_posting_candidates(
 
 def write_postings_jsonl(
     postings: list[JobPosting],
-    output_path: Path | str = "data/postings.jsonl",
+    output_path: Path | str = default_data_file("postings.jsonl"),
 ) -> Path:
     """Write current postings to JSONL while deduplicating by canonical posting URL."""
 

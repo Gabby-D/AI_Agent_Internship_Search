@@ -23,6 +23,7 @@ param(
 # next becomes available (for example, after the machine is turned on).
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "local_files.ps1")
 $DashboardWrapper = Join-Path $PSScriptRoot "run_dashboard.ps1"
 $CompanyDiscoveryWrapper = Join-Path $PSScriptRoot "run_company_discovery.ps1"
 $CollectionWrapper = Join-Path $PSScriptRoot "run_scheduled_collection.ps1"
@@ -140,5 +141,5 @@ Write-Host "Dashboard wrapper: $DashboardWrapper"
 Write-Host "Company-discovery wrapper: $CompanyDiscoveryWrapper"
 Write-Host "Collection wrapper: $CollectionWrapper"
 Write-Host "Weekly email wrapper: $WeeklyEmailWrapper"
-Write-Host "Console logs: $(Join-Path $ProjectRoot 'data/scheduled_run_output')"
-Write-Host "Structured run log: $(Join-Path $ProjectRoot 'data/scheduled_collection_runs.jsonl')"
+Write-Host "Console logs: $(Join-Path $InternshipSearchDataDir 'scheduled_run_output')"
+Write-Host "Structured run log: $(Join-Path $InternshipSearchDataDir 'scheduled_collection_runs.jsonl')"

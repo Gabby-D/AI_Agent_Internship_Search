@@ -13,6 +13,7 @@ from internship_search.fit_scoring import ScoredPosting
 from internship_search.job_collector import CollectionError, read_postings_jsonl
 from internship_search.location_filter import summarize_allowed_locations
 from internship_search.monitored_companies import read_collection_errors_jsonl
+from internship_search.paths import default_data_file
 from internship_search.source_registry import CompanySource, read_source_registry
 
 
@@ -38,13 +39,13 @@ DEFAULT_RECIPIENT = ""
 
 
 def generate_weekly_email_summary_file(
-    scored_path: Path | str = "data/scored_postings.jsonl",
-    new_postings_path: Path | str = "data/new_postings.jsonl",
-    registry_path: Path | str = "data/source_registry.json",
-    output_path: Path | str = "data/weekly_email_summary.md",
-    sent_history_path: Path | str = "data/email_sent_history.json",
-    history_path: Path | str | None = "data/posting_history.json",
-    collection_errors_path: Path | str | None = "data/collection_errors.jsonl",
+    scored_path: Path | str = default_data_file("scored_postings.jsonl"),
+    new_postings_path: Path | str = default_data_file("new_postings.jsonl"),
+    registry_path: Path | str = default_data_file("source_registry.json"),
+    output_path: Path | str = default_data_file("weekly_email_summary.md"),
+    sent_history_path: Path | str = default_data_file("email_sent_history.json"),
+    history_path: Path | str | None = default_data_file("posting_history.json"),
+    collection_errors_path: Path | str | None = default_data_file("collection_errors.jsonl"),
     recipient: str | None = None,
     send: bool = False,
 ) -> EmailSummary:

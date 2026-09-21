@@ -10,6 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from internship_search.env_loader import get_env, load_env_into_process
+from internship_search.paths import default_private_dir
 from internship_search.posting_filter import FilteredPosting
 from internship_search.private_inputs import PrivateInputs
 from internship_search.resume_scoring import ResumeScoringConfig, load_resume_scoring_config
@@ -93,7 +94,7 @@ class GeminiFitScorer:
         post_json: PostJson | None = None,
         fallback_scorer: FitScorer | None = None,
         resume_config: ResumeScoringConfig | None = None,
-        private_dir: Path | str = "private",
+        private_dir: Path | str = default_private_dir(),
     ) -> None:
         self.api_key = api_key
         self.model = model
@@ -145,7 +146,7 @@ class GeminiFitScorer:
 def get_fit_scorer(
     provider_name: str | None = None,
     *,
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
     resume_aware: bool | None = None,
 ) -> FitScorer:
     load_env_into_process()
@@ -176,7 +177,7 @@ def score_posting_with_gemini(
     model: str = DEFAULT_GEMINI_MODEL,
     post_json: PostJson | None = None,
     resume_summary: str | None = None,
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
 ) -> ParsedFitScore:
     prompt = build_scoring_prompt(
         posting=posting,

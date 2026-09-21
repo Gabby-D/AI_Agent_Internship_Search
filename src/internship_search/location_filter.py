@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from internship_search.paths import default_private_dir
+
 REMOTE_MARKERS = (
     "remote",
     "online",
@@ -24,7 +26,7 @@ FLEXIBLE_LOCATION_MARKERS = (
     "various locations",
 )
 
-DEFAULT_LOCATION_PREFERENCES_PATH = Path("private/location_preferences.txt")
+DEFAULT_LOCATION_PREFERENCES_PATH = default_private_dir() / "location_preferences.txt"
 LOCATION_FILTER_REASON = "Excluded because location does not match the user's preference of location."
 AMBIGUOUS_CITY_COUNTRY_GUARDS = {
     # Avoid treating San Jose, Costa Rica as the Bay Area city.

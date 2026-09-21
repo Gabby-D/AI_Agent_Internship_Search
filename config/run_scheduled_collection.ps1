@@ -5,7 +5,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$LogDir = Join-Path $ProjectRoot "data\scheduled_run_output"
+. (Join-Path $PSScriptRoot "local_files.ps1")
+$LogDir = Join-Path $InternshipSearchDataDir "scheduled_run_output"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"

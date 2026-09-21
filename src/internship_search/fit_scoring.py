@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from internship_search.paths import default_data_file, default_private_dir
 from internship_search.posting_filter import FilteredPosting, read_filtered_postings_jsonl
 from internship_search.private_inputs import PrivateInputs, load_private_inputs
 from internship_search.preference_filter import title_dislike_matches
@@ -54,10 +55,10 @@ PREFERENCE_STOPWORDS = {
 
 
 def score_postings_file(
-    postings_path: Path | str = "data/filtered_postings.jsonl",
-    private_dir: Path | str = "private",
-    registry_path: Path | str = "data/source_registry.json",
-    output_path: Path | str = "data/scored_postings.jsonl",
+    postings_path: Path | str = default_data_file("filtered_postings.jsonl"),
+    private_dir: Path | str = default_private_dir(),
+    registry_path: Path | str = default_data_file("source_registry.json"),
+    output_path: Path | str = default_data_file("scored_postings.jsonl"),
     provider_name: str | None = None,
     resume_aware: bool | None = None,
 ) -> ScoreResult:
@@ -79,9 +80,9 @@ def score_postings(
     postings: list[FilteredPosting],
     private_inputs: PrivateInputs,
     sources: list[CompanySource],
-    output_path: Path | str = "data/scored_postings.jsonl",
+    output_path: Path | str = default_data_file("scored_postings.jsonl"),
     provider_name: str | None = None,
-    private_dir: Path | str = "private",
+    private_dir: Path | str = default_private_dir(),
     resume_aware: bool | None = None,
 ) -> ScoreResult:
     from internship_search.ai_scoring import AiUsage, get_fit_scorer

@@ -3,6 +3,7 @@
 
 $ErrorActionPreference = "Continue"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "local_files.ps1")
 Set-Location $ProjectRoot
 
 Write-Host "=== Email environment ==="
@@ -59,7 +60,7 @@ try {
 
 Write-Host ""
 Write-Host "=== Recent automation logs ==="
-$LogDir = Join-Path $ProjectRoot "data\scheduled_run_output"
+$LogDir = Join-Path $InternshipSearchDataDir "scheduled_run_output"
 if (Test-Path $LogDir) {
     Get-ChildItem $LogDir -File | Sort-Object LastWriteTime -Descending | Select-Object -First 5 |
         Format-Table Name, LastWriteTime, Length -AutoSize
@@ -67,7 +68,7 @@ if (Test-Path $LogDir) {
     Write-Host "No wrapper logs yet at $LogDir"
 }
 
-$RunsLog = Join-Path $ProjectRoot "data\scheduled_collection_runs.jsonl"
+$RunsLog = Join-Path $InternshipSearchDataDir "scheduled_collection_runs.jsonl"
 if (Test-Path $RunsLog) {
     $LastLine = Get-Content $RunsLog -Tail 1
     if ($LastLine) {

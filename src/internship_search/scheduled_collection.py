@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from internship_search.paths import default_data_dir, default_private_dir
+
 
 @dataclass(frozen=True)
 class WorkflowStepResult:
@@ -41,8 +43,8 @@ WorkflowStep = Callable[[], object]
 
 
 def run_scheduled_collection(
-    private_dir: Path | str = "private",
-    data_dir: Path | str = "data",
+    private_dir: Path | str = default_private_dir(),
+    data_dir: Path | str = default_data_dir(),
     generate_email: bool = True,
     send_email: bool = False,
     resume_aware: bool | None = None,

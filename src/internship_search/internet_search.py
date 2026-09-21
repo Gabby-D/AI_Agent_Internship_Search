@@ -15,6 +15,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from internship_search.env_loader import get_env, load_env_into_process
+from internship_search.paths import default_data_file
 
 
 FetchText = Callable[[str, str, bytes | None], str]
@@ -92,7 +93,7 @@ def search_internet(
     provider: SearchProvider | None = None,
     company: str = "",
     max_results: int = 5,
-    output_path: Path | str | None = "data/internet_search_results.jsonl",
+    output_path: Path | str | None = default_data_file("internet_search_results.jsonl"),
     searched_at: str | None = None,
 ) -> SearchResponse:
     load_env_into_process()
@@ -129,7 +130,7 @@ def search_company_careers(
     target_year: str = "2027",
     provider: SearchProvider | None = None,
     max_results: int = 5,
-    output_path: Path | str | None = "data/internet_search_results.jsonl",
+    output_path: Path | str | None = default_data_file("internet_search_results.jsonl"),
     searched_at: str | None = None,
 ) -> SearchResponse:
     query = f"{company} summer {target_year} internship careers"

@@ -24,6 +24,7 @@ from internship_search.job_collector import (
     merge_posting_candidates,
     write_postings_jsonl,
 )
+from internship_search.paths import default_data_file
 
 
 DEFAULT_TARGET_YEAR = "2027"
@@ -101,7 +102,7 @@ def search_job_boards(
     target_year: str = DEFAULT_TARGET_YEAR,
     provider: JobBoardProvider | None = None,
     max_results: int = 20,
-    output_path: Path | str | None = "data/job_board_postings.jsonl",
+    output_path: Path | str | None = default_data_file("job_board_postings.jsonl"),
     searched_at: str | None = None,
 ) -> JobBoardSearchResponse:
     load_env_into_process()
@@ -147,7 +148,7 @@ def search_job_boards(
 
 
 def search_job_boards_file(
-    output_path: Path | str = "data/job_board_postings.jsonl",
+    output_path: Path | str = default_data_file("job_board_postings.jsonl"),
     *,
     query: str | None = None,
     target_year: str = DEFAULT_TARGET_YEAR,

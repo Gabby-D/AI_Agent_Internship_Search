@@ -1,6 +1,8 @@
 # Private Local Files
 
-Use this directory for personal files that should not be committed to git.
+Live private inputs are stored at `G:\My Drive\none_git_files\AI_Agent_Internship_Search\private`. This repository folder only keeps this README and `.gitkeep` in git.
+
+Use that Google Drive directory for personal files that should not be committed to git.
 
 ## Application inputs
 
@@ -25,6 +27,6 @@ The standalone legacy resume PDF is only checked for existence and is not parsed
 
 Everything in this directory is ignored by git except this README and `.gitkeep`. Confirm with `git check-ignore private/<filename>` before staging changes.
 
-The packaged Windows app does not embed this directory. `app/Internship Search.exe` reads these files locally at runtime.
+The packaged Windows app does not embed this directory. `app/Internship Search.exe` reads these files from Google Drive at runtime.
 
 Standard wheel and source-distribution builds also exclude this directory through the package layout and `MANIFEST.in`.

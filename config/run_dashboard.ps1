@@ -7,8 +7,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "local_files.ps1")
 $Executable = Join-Path $ProjectRoot "app\Internship Search.exe"
-$LogDir = Join-Path $ProjectRoot "data\scheduled_run_output"
+$LogDir = Join-Path $InternshipSearchDataDir "scheduled_run_output"
 $LogFile = Join-Path $LogDir "dashboard_task.log"
 $DashboardUrl = "http://127.0.0.1:$Port"
 

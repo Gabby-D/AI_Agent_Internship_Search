@@ -16,6 +16,7 @@ from internship_search.location_filter import (
     summarize_allowed_locations,
 )
 from internship_search.monitored_companies import read_collection_errors_jsonl
+from internship_search.paths import default_data_dir, default_data_file, default_private_dir
 from internship_search.posting_filter import read_filtered_postings_jsonl
 from internship_search.posting_history import inactive_posting_urls, read_history
 from internship_search.private_inputs import Preferences, load_private_inputs
@@ -81,8 +82,8 @@ class ReviewablePosting:
 
 
 def load_review_dashboard(
-    data_dir: Path | str = "data",
-    private_dir: Path | str = "private",
+    data_dir: Path | str = default_data_dir(),
+    private_dir: Path | str = default_private_dir(),
     filters: ReviewFilters | None = None,
 ) -> dict:
     data_path = Path(data_dir)
@@ -573,8 +574,8 @@ def first_query_value(query: dict[str, list[str]], key: str) -> str | None:
 
 
 def load_ui_preferences(
-    private_dir: Path | str = "private",
-    preferences_path: Path | str = "data/ui_preferences.json",
+    private_dir: Path | str = default_private_dir(),
+    preferences_path: Path | str = default_data_file("ui_preferences.json"),
 ) -> dict:
     path = Path(preferences_path)
     if path.exists():
@@ -596,7 +597,7 @@ def load_ui_preferences(
 def save_ui_preferences(
     likes: list[str],
     dislikes: list[str],
-    output_path: Path | str = "data/ui_preferences.json",
+    output_path: Path | str = default_data_file("ui_preferences.json"),
 ) -> Path:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -613,7 +614,7 @@ def append_activity_log(
     action: str,
     subject: str,
     details: dict | None = None,
-    output_path: Path | str = "data/activity_log.jsonl",
+    output_path: Path | str = default_data_file("activity_log.jsonl"),
 ) -> Path:
     """Append a dated local audit event for a user action."""
 
@@ -655,7 +656,7 @@ def get_activity_type(action: str) -> str:
 
 
 def read_activity_log(
-    path: Path | str = "data/activity_log.jsonl",
+    path: Path | str = default_data_file("activity_log.jsonl"),
     limit: int = 1000,
 ) -> list[dict]:
     log_path = Path(path)
@@ -710,7 +711,7 @@ def read_activity_log(
     return list(reversed(events[-limit:]))
 
 
-def read_posting_notes(path: Path | str = "data/posting_notes.json") -> dict[str, str]:
+def read_posting_notes(path: Path | str = default_data_file("posting_notes.json")) -> dict[str, str]:
     """Read local notes keyed by posting URL."""
 
     notes_path = Path(path)
@@ -727,7 +728,7 @@ def read_posting_notes(path: Path | str = "data/posting_notes.json") -> dict[str
 def set_posting_note(
     posting_url: str,
     notes: str,
-    output_path: Path | str = "data/posting_notes.json",
+    output_path: Path | str = default_data_file("posting_notes.json"),
 ) -> str:
     """Save or clear a local note for one posting."""
 
@@ -773,7 +774,7 @@ def read_posting_reviews(path: Path | str) -> dict[str, str]:
 def set_posting_review(
     posting_url: str,
     status: str,
-    output_path: Path | str = "data/posting_reviews.json",
+    output_path: Path | str = default_data_file("posting_reviews.json"),
 ) -> ReviewEntry:
     normalized_status = normalize_review_status(status)
     if normalized_status not in REVIEW_STATUSES:

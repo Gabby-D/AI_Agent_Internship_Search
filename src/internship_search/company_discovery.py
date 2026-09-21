@@ -14,6 +14,7 @@ from internship_search.internet_search import (
     is_blocked_domain,
     search_internet,
 )
+from internship_search.paths import default_data_file, default_private_dir
 from internship_search.private_inputs import PrivateInputs, load_private_inputs
 from internship_search.source_registry import (
     CompanySource,
@@ -88,10 +89,10 @@ DOMAIN_COMPANY_NAMES = {
 
 CURATED_DISCOVERY_CANDIDATES: list[DiscoveredCompany] = []
 def discover_companies_file(
-    private_dir: Path | str = "private",
-    registry_path: Path | str = "data/source_registry.json",
-    output_path: Path | str = "data/discovered_companies.json",
-    report_path: Path | str = "data/discovered_companies.md",
+    private_dir: Path | str = default_private_dir(),
+    registry_path: Path | str = default_data_file("source_registry.json"),
+    output_path: Path | str = default_data_file("discovered_companies.json"),
+    report_path: Path | str = default_data_file("discovered_companies.md"),
     update_registry: bool = False,
     use_internet: bool = True,
     search_provider: SearchProvider | None = None,
@@ -103,6 +104,7 @@ def discover_companies_file(
         existing_sources,
         use_internet=use_internet,
         search_provider=search_provider,
+        dismissed_path=Path(registry_path).with_name("company_dismissals.json"),
     )
     suggestions_output = write_discovered_companies(discovery.suggestions, output_path)
     report_output = write_discovery_report(discovery, report_path)
@@ -138,17 +140,19 @@ def discover_companies(
     *,
     use_internet: bool = True,
     search_provider: SearchProvider | None = None,
+    dismissed_path: Path | str | None = None,
 ) -> DiscoveryBundle:
-    dismissed_path = Path("data/company_dismissals.json")
     dismissed_names = set()
-    if dismissed_path.exists():
-        try:
-            dismissed_names = {
-                normalize_company_name(name)
-                for name in json.loads(dismissed_path.read_text(encoding="utf-8"))
-            }
-        except Exception:
-            pass
+    if dismissed_path is not None:
+        dismissed_file = Path(dismissed_path)
+        if dismissed_file.exists():
+            try:
+                dismissed_names = {
+                    normalize_company_name(name)
+                    for name in json.loads(dismissed_file.read_text(encoding="utf-8"))
+                }
+            except Exception:
+                pass
 
     existing_names = {
         normalize_company_name(company.name)

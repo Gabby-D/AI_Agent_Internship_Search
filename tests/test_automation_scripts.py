@@ -21,6 +21,11 @@ def test_weekly_company_discovery_is_registered_before_collection_and_email():
     assert "AI Agent Internship Company Discovery" in verification
     assert '"discover-companies"' in wrapper
     assert '"company_discovery_$Timestamp.log"' in wrapper
+    assert "local_files.ps1" in wrapper
+    assert "InternshipSearchDataDir" in wrapper
+    assert r"G:\My Drive\none_git_files\AI_Agent_Internship_Search" in (
+        PROJECT_ROOT / "config/local_files.ps1"
+    ).read_text(encoding="utf-8")
 
 
 def test_scheduled_tasks_wake_retry_serialize_and_refresh_before_email():
@@ -42,6 +47,7 @@ def test_scheduled_tasks_wake_retry_serialize_and_refresh_before_email():
     assert "-RestartInterval (New-TimeSpan -Minutes 5)" in registration
     assert "-MultipleInstances IgnoreNew" in registration
     assert all("Local\\AI_Agent_Internship_Automation" in wrapper for wrapper in wrappers)
+    assert all("InternshipSearchDataDir" in wrapper for wrapper in wrappers)
     assert '"run-scheduled-collection"' in weekly
     assert '"--send-email"' in weekly
     assert '"--include-job-boards"' in weekly

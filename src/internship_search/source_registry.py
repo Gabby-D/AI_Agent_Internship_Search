@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from internship_search.paths import default_data_file, default_private_dir
 from internship_search.private_inputs import Company, load_private_inputs
 
 
@@ -708,7 +709,7 @@ def build_company_source(company: Company) -> CompanySource:
     )
 
 
-def load_seed_source_registry(private_dir: Path | str = "private") -> list[CompanySource]:
+def load_seed_source_registry(private_dir: Path | str = default_private_dir()) -> list[CompanySource]:
     """Load private seed companies and convert them into source registry entries."""
 
     inputs = load_private_inputs(private_dir)
@@ -717,7 +718,7 @@ def load_seed_source_registry(private_dir: Path | str = "private") -> list[Compa
 
 def write_source_registry(
     sources: list[CompanySource],
-    output_path: Path | str = "data/source_registry.json",
+    output_path: Path | str = default_data_file("source_registry.json"),
 ) -> Path:
     """Write source registry entries to a local JSON file."""
 
@@ -728,7 +729,7 @@ def write_source_registry(
     return path
 
 
-def read_source_registry(path: Path | str = "data/source_registry.json") -> list[CompanySource]:
+def read_source_registry(path: Path | str = default_data_file("source_registry.json")) -> list[CompanySource]:
     """Read source registry entries from a JSON file."""
 
     registry_path = Path(path)

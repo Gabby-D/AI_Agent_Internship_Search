@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
+from internship_search.paths import default_data_dir, default_private_dir
 from internship_search.private_inputs import (
     PrivateInputError,
     read_editable_text,
@@ -138,8 +139,8 @@ class ManualSearchController:
 def start_review_ui(
     host: str = "127.0.0.1",
     port: int = 8765,
-    data_dir: Path | str = "data",
-    private_dir: Path | str = "private",
+    data_dir: Path | str = default_data_dir(),
+    private_dir: Path | str = default_private_dir(),
     *,
     open_browser: bool = True,
 ) -> ReviewUIServer:
