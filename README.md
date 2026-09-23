@@ -145,9 +145,9 @@ powershell -ExecutionPolicy Bypass -File config/register_scheduled_tasks.ps1
 This includes **AI Agent Internship Dashboard**. Cursor is not required.
 Windows Task Scheduler starts the app when you log in, waits for Google Drive
 if needed, and checks about every 15 minutes so `http://127.0.0.1:8765` stays
-available. It does not open a browser automatically, prevents duplicate
-servers, and restarts the app if it stops. Open that address whenever you
-want to use the site.
+available. The scheduled tasks run hidden, with no terminal window. It does not
+open a browser automatically, prevents duplicate servers, and restarts the app
+if it stops. Open that address whenever you want to use the site.
 
 The dashboard is private to this laptop and listens only on `127.0.0.1`. It is
 available while the laptop is powered on and you are logged in; it cannot run

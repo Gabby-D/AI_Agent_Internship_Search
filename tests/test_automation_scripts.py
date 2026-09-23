@@ -41,6 +41,8 @@ def test_scheduled_tasks_wake_retry_serialize_and_refresh_before_email():
         )
     ]
     weekly = wrappers[-1]
+    silent_launcher = (PROJECT_ROOT / "config/run_silent.vbs").read_text(encoding="utf-8")
+    local_files = (PROJECT_ROOT / "config/local_files.ps1").read_text(encoding="utf-8")
 
     assert "-WakeToRun" in registration
     assert "-RestartCount 3" in registration
@@ -48,6 +50,14 @@ def test_scheduled_tasks_wake_retry_serialize_and_refresh_before_email():
     assert "-RepetitionInterval (New-TimeSpan -Minutes 15)" in registration
     assert "-RestartInterval (New-TimeSpan -Minutes 5)" in registration
     assert "-MultipleInstances IgnoreNew" in registration
+    assert "$Settings.Hidden = $true" in registration
+    assert "$DashboardSettings.Hidden = $true" in registration
+    assert '-Execute "wscript.exe"' in registration
+    assert "run_silent.vbs" in registration
+    assert "shell.Run command, 0, True" in silent_launcher
+    assert "pythonw.exe" in local_files
+    assert "Invoke-InternshipSearchCli" in local_files
+    assert all("Invoke-InternshipSearchCli" in wrapper for wrapper in wrappers)
     assert all("Local\\AI_Agent_Internship_Automation" in wrapper for wrapper in wrappers)
     assert all("InternshipSearchDataDir" in wrapper for wrapper in wrappers)
     assert all("Wait-InternshipSearchFiles" in wrapper for wrapper in wrappers)
@@ -56,6 +66,5 @@ def test_scheduled_tasks_wake_retry_serialize_and_refresh_before_email():
     assert '"--include-job-boards"' in weekly
     assert "last_successful_week" in weekly
     assert "-Daily -At $WeeklyEmailAt" in registration
-    assert '"-NoProfile -WindowStyle Hidden "' in registration
     dashboard = (PROJECT_ROOT / "config/run_dashboard.ps1").read_text(encoding="utf-8")
     assert "Wait-InternshipSearchFiles -TimeoutSeconds 0" in dashboard

@@ -94,6 +94,7 @@ Suggested future modules:
 - `.env` lives at `G:\My Drive\none_git_files\AI_Agent_Internship_Search\.env` and is ignored by git.
 - `.python-version` tells `uv` which Python version this project expects.
 - `config/register_scheduled_tasks.ps1` registers daily collection and Monday weekly-email tasks with missed-run catch-up.
+- `config/run_silent.vbs` launches scheduled PowerShell wrappers without a console window.
 - `config/run_company_discovery.ps1` refreshes recommended companies every Monday and writes a Google Drive wrapper log.
 - `config/run_scheduled_collection.ps1` runs the workflow and writes console logs under the Google Drive `data/scheduled_run_output/` folder.
 - `config/run_weekly_email.ps1` sends the weekly email summary and writes console logs under the Google Drive `data/scheduled_run_output/` folder.

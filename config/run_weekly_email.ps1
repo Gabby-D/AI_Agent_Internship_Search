@@ -14,13 +14,6 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $LogFile = Join-Path $LogDir "weekly_email_$Timestamp.log"
 $StateFile = Join-Path $InternshipSearchDataDir "weekly_email_task_state.json"
-$Command = @(
-    "run",
-    "internship-search",
-    "run-scheduled-collection",
-    "--send-email",
-    "--include-job-boards"
-) + $EmailArgs
 $AutomationLock = [System.Threading.Mutex]::new(
     $false,
     "Local\AI_Agent_Internship_Automation"
@@ -64,10 +57,10 @@ try {
     }
 
     "[$Timestamp] Starting fresh weekly collection and email send in $ProjectRoot" | Tee-Object -FilePath $LogFile
-    "Command: uv $($Command -join ' ')" | Tee-Object -FilePath $LogFile -Append
-
-    & uv @Command *>&1 | Tee-Object -FilePath $LogFile -Append
-    $ExitCode = $LASTEXITCODE
+    $ExitCode = Invoke-InternshipSearchCli `
+        -ProjectRoot $ProjectRoot `
+        -CliArgs (@("run-scheduled-collection", "--send-email", "--include-job-boards") + $EmailArgs) `
+        -LogFile $LogFile
 
     if ($ExitCode -eq 0) {
         @{

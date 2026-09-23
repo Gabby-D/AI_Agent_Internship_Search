@@ -37,6 +37,7 @@ $Settings = New-ScheduledTaskSettingsSet `
     -RestartCount 3 `
     -RestartInterval (New-TimeSpan -Minutes 5) `
     -MultipleInstances IgnoreNew
+$Settings.Hidden = $true
 
 $DashboardSettings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
@@ -46,14 +47,22 @@ $DashboardSettings = New-ScheduledTaskSettingsSet `
     -RestartInterval (New-TimeSpan -Minutes 1) `
     -ExecutionTimeLimit ([TimeSpan]::Zero) `
     -MultipleInstances IgnoreNew
+$DashboardSettings.Hidden = $true
 
-function Build-WrapperArguments {
+$SilentLauncher = Join-Path $PSScriptRoot "run_silent.vbs"
+
+function Build-SilentTaskArguments {
     param(
         [string] $WrapperScript,
         [string[]] $ExtraArgs
     )
 
-    $ArgumentList = @("-ExecutionPolicy", "Bypass", "-File", "`"$WrapperScript`"")
+    $ArgumentList = @(
+        "//B",
+        "//nologo",
+        "`"$SilentLauncher`"",
+        "`"$WrapperScript`""
+    )
     if ($ExtraArgs.Count -gt 0) {
         $ArgumentList += $ExtraArgs
     }
@@ -61,11 +70,8 @@ function Build-WrapperArguments {
 }
 
 $DashboardAction = New-ScheduledTaskAction `
-    -Execute "powershell.exe" `
-    -Argument (
-        "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass " +
-        "-File `"$DashboardWrapper`""
-    ) `
+    -Execute "wscript.exe" `
+    -Argument (Build-SilentTaskArguments -WrapperScript $DashboardWrapper) `
     -WorkingDirectory $ProjectRoot
 
 $CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -85,8 +91,8 @@ Register-ScheduledTask `
     -Force | Out-Null
 
 $CompanyDiscoveryAction = New-ScheduledTaskAction `
-    -Execute "powershell.exe" `
-    -Argument ("-NoProfile -WindowStyle Hidden " + (Build-WrapperArguments -WrapperScript $CompanyDiscoveryWrapper -ExtraArgs $CompanyDiscoveryArgs)) `
+    -Execute "wscript.exe" `
+    -Argument (Build-SilentTaskArguments -WrapperScript $CompanyDiscoveryWrapper -ExtraArgs $CompanyDiscoveryArgs) `
     -WorkingDirectory $ProjectRoot
 
 $CompanyDiscoveryTrigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At $CompanyDiscoveryAt
@@ -100,8 +106,8 @@ Register-ScheduledTask `
     -Force | Out-Null
 
 $CollectionAction = New-ScheduledTaskAction `
-    -Execute "powershell.exe" `
-    -Argument ("-NoProfile -WindowStyle Hidden " + (Build-WrapperArguments -WrapperScript $CollectionWrapper -ExtraArgs $CollectionArgs)) `
+    -Execute "wscript.exe" `
+    -Argument (Build-SilentTaskArguments -WrapperScript $CollectionWrapper -ExtraArgs $CollectionArgs) `
     -WorkingDirectory $ProjectRoot
 
 $CollectionTrigger = New-ScheduledTaskTrigger -Daily -At $CollectionAt
@@ -115,8 +121,8 @@ Register-ScheduledTask `
     -Force | Out-Null
 
 $WeeklyEmailAction = New-ScheduledTaskAction `
-    -Execute "powershell.exe" `
-    -Argument ("-NoProfile -WindowStyle Hidden " + (Build-WrapperArguments -WrapperScript $WeeklyEmailWrapper -ExtraArgs $WeeklyEmailArgs)) `
+    -Execute "wscript.exe" `
+    -Argument (Build-SilentTaskArguments -WrapperScript $WeeklyEmailWrapper -ExtraArgs $WeeklyEmailArgs) `
     -WorkingDirectory $ProjectRoot
 
 # Monday ladder: 10:00 AM, then same-day retries at 1:00 PM / 5:00 PM / 8:00 PM / 10:00 PM.

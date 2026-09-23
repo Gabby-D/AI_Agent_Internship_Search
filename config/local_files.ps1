@@ -24,3 +24,24 @@ function Wait-InternshipSearchFiles {
         Start-Sleep -Seconds $PollSeconds
     }
 }
+
+function Invoke-InternshipSearchCli {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $ProjectRoot,
+        [Parameter(Mandatory = $true)]
+        [string[]] $CliArgs,
+        [Parameter(Mandatory = $true)]
+        [string] $LogFile
+    )
+
+    $Pythonw = Join-Path $ProjectRoot ".venv\Scripts\pythonw.exe"
+    if (-not (Test-Path -LiteralPath $Pythonw)) {
+        throw "Project Python environment not found at $Pythonw."
+    }
+
+    $Command = @("-m", "internship_search") + $CliArgs
+    "Command: $Pythonw $($Command -join ' ')" | Tee-Object -FilePath $LogFile -Append
+    & $Pythonw @Command *>&1 | Tee-Object -FilePath $LogFile -Append
+    return $LASTEXITCODE
+}
